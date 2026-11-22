@@ -527,12 +527,17 @@
 
       <!-- Cloud Sync (Multi-Device Firebase) Card -->
       <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-2">
           <div class="flex items-center gap-2">
             <span class="w-1.5 h-4 rounded-full bg-indigo-600"></span>
             <h2 class="text-sm font-extrabold text-slate-800">Cloud Sync (ဖုန်းအားလုံး ချိတ်ဆက်ရန်)</h2>
           </div>
-          <span id="settings-sync-badge" class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">Local Mode</span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="openFirebaseConfigModal()" class="px-2.5 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold transition">
+              Firebase Config
+            </button>
+            <span id="settings-sync-badge" class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">Local Mode</span>
+          </div>
         </div>
 
         <div id="cloud-disconnected-view" class="space-y-2.5">
@@ -815,13 +820,37 @@
     </div>
   </div>
 
+  <!-- ==================== IN-APP FIREBASE CONFIG MODAL ==================== -->
+  <div id="firebase-config-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-3xl p-4 shadow-2xl space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-900">Firebase Config ထည့်သွင်းရန်</h3>
+        <button type="button" onclick="closeFirebaseConfigModal()" class="p-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <textarea id="firebase-config-textarea" rows="7" placeholder='const firebaseConfig = {
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "...",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "..."
+};' class="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-600"></textarea>
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" onclick="clearSavedFirebaseConfig()" class="py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">မူလအတိုင်းထားမည်</button>
+        <button type="button" onclick="saveFirebaseConfigFromModal()" class="py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-extrabold">သိမ်းပြီး ချိတ်ဆက်မည်</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== TOAST NOTIFICATION ==================== -->
   <div id="toast-container" class="fixed top-16 inset-x-0 z-50 flex flex-col items-center gap-1.5 pointer-events-none px-3"></div>
 
   <!-- ==================== APPLICATION ENGINE & FIREBASE SYNC ==================== -->
   <script>
     // =========================================================================
-    // 1. SAFE FIREBASE CONFIGURATION (Zero Top-Level Await / Safe JSON Parse)
+    // 1. SAFE FIREBASE CONFIGURATION (Collision-Free & Auto-Detecting)
     // =========================================================================
     const firebaseConfig = {
   apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
@@ -832,26 +861,62 @@
   appId: "1:880270085984:web:d65a0c381172def3af1805"
 };
 
+    const CUSTOM_FB_STORAGE_KEY = 'shwepos_custom_firebase_cfg_v1';
+
+    function isValidFirebaseConfigObj(cfg) {
+      return Boolean(
+        cfg &&
+        typeof cfg === 'object' &&
+        cfg.apiKey &&
+        String(cfg.apiKey).trim() !== '' &&
+        String(cfg.apiKey).trim() !== 'YOUR_API_KEY' &&
+        cfg.projectId &&
+        String(cfg.projectId).trim() !== '' &&
+        String(cfg.projectId).trim() !== 'YOUR_PROJECT_ID'
+      );
+    }
+
     function getSafeFirebaseConfig() {
+      // 1) Check if user pasted `const firebaseConfig = {...}` or `window.firebaseConfig = {...}`
       try {
-        if (typeof __firebase_config === 'undefined' || !__firebase_config) {
-          return DEFAULT_FIREBASE_CONFIG;
+        if (typeof firebaseConfig !== 'undefined' && isValidFirebaseConfigObj(firebaseConfig)) {
+          return firebaseConfig;
         }
-        if (typeof __firebase_config === 'object') {
-          return __firebase_config;
-        }
-        const trimmed = String(__firebase_config).trim();
-        if (!trimmed || trimmed === 'undefined' || trimmed === 'null') {
-          return DEFAULT_FIREBASE_CONFIG;
-        }
-        return JSON.parse(trimmed);
-      } catch (e) {
-        return DEFAULT_FIREBASE_CONFIG;
+      } catch (e) {}
+
+      // 2) Check MY_FIREBASE_CONFIG edited directly in this file
+      if (isValidFirebaseConfigObj(MY_FIREBASE_CONFIG)) {
+        return MY_FIREBASE_CONFIG;
       }
+
+      // 3) Check Firebase Config saved via in-app Settings modal
+      try {
+        const savedRaw = localStorage.getItem(CUSTOM_FB_STORAGE_KEY);
+        if (savedRaw) {
+          const parsed = JSON.parse(savedRaw);
+          if (isValidFirebaseConfigObj(parsed)) return parsed;
+        }
+      } catch (e) {}
+
+      // 4) Check environment-injected __firebase_config
+      try {
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          if (typeof __firebase_config === 'object' && isValidFirebaseConfigObj(__firebase_config)) {
+            return __firebase_config;
+          }
+          const trimmed = String(__firebase_config).trim();
+          if (trimmed && trimmed !== 'undefined' && trimmed !== 'null') {
+            const parsedEnv = JSON.parse(trimmed);
+            if (isValidFirebaseConfigObj(parsedEnv)) return parsedEnv;
+          }
+        }
+      } catch (e) {}
+
+      return MY_FIREBASE_CONFIG;
     }
 
     const appId = (typeof __app_id !== 'undefined' && __app_id) ? String(__app_id) : 'shwepos-app';
-    const firebaseConfig = getSafeFirebaseConfig();
+    let resolvedFirebaseConfig = getSafeFirebaseConfig();
 
     let app = null;
     let auth = null;
@@ -1082,11 +1147,98 @@
     }
 
     async function initFirebaseBackground() {
-      const isPlaceholderConfig = !firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === 'YOUR_API_KEY';
-      if (isPlaceholderConfig) {
+      resolvedFirebaseConfig = getSafeFirebaseConfig();
+      if (!isValidFirebaseConfigObj(resolvedFirebaseConfig)) {
         updateCloudStatusBadge('local', activeShopId ? `Local (${activeShopId})` : 'Local Mode');
         return;
       }
+
+      updateCloudStatusBadge('syncing', 'Connecting...');
+
+      try {
+        const [appMod, authMod, firestoreMod] = await Promise.all([
+          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
+          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
+          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js")
+        ]);
+
+        fsApi = firestoreMod;
+        const appInstanceName = `shwepos_${resolvedFirebaseConfig.projectId}_${Date.now()}`;
+        app = appMod.initializeApp(resolvedFirebaseConfig, appInstanceName);
+        auth = authMod.getAuth(app);
+        db = firestoreMod.getFirestore(app);
+
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && resolvedFirebaseConfig === getEnvFirebaseConfigSafe()) {
+          await authMod.signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await authMod.signInAnonymously(auth);
+        }
+        currentUser = auth.currentUser;
+
+        if (currentUser && activeShopId) {
+          attachSingleDocListener(activeShopId);
+        } else if (currentUser) {
+          updateCloudStatusBadge('ready', 'Firebase Ready');
+        } else {
+          updateCloudStatusBadge('local', 'Local Mode');
+        }
+      } catch (err) {
+        console.warn('Firebase init fallback to local:', err);
+        updateCloudStatusBadge('offline', 'Firebase Error');
+      }
+    }
+
+    function getEnvFirebaseConfigSafe() {
+      try {
+        if (typeof __firebase_config === 'undefined' || !__firebase_config) return null;
+        return typeof __firebase_config === 'object' ? __firebase_config : JSON.parse(String(__firebase_config));
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function openFirebaseConfigModal() {
+      const textarea = document.getElementById('firebase-config-textarea');
+      const current = getSafeFirebaseConfig();
+      textarea.value = isValidFirebaseConfigObj(current) ? JSON.stringify(current, null, 2) : '';
+      document.getElementById('firebase-config-modal').classList.remove('hidden');
+    }
+
+    function closeFirebaseConfigModal() {
+      document.getElementById('firebase-config-modal').classList.add('hidden');
+    }
+
+    function saveFirebaseConfigFromModal() {
+      const raw = document.getElementById('firebase-config-textarea').value.trim();
+      if (!raw) {
+        showToast('Firebase Config ထည့်သွင်းပါ', 'error');
+        return;
+      }
+      const parsed = {};
+      const keys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
+      keys.forEach(k => {
+        const regex = new RegExp(`["']?${k}["']?\\s*:\\s*["']([^"']+)["']`);
+        const match = raw.match(regex);
+        if (match && match[1]) parsed[k] = match[1].trim();
+      });
+
+      if (!isValidFirebaseConfigObj(parsed)) {
+        showToast('apiKey နှင့် projectId မှန်ကန်စွာ ထည့်သွင်းပါ', 'error');
+        return;
+      }
+
+      localStorage.setItem(CUSTOM_FB_STORAGE_KEY, JSON.stringify(parsed));
+      closeFirebaseConfigModal();
+      showToast('Firebase Config သိမ်းဆည်းပြီး ချိတ်ဆက်နေပါသည်...');
+      initFirebaseBackground();
+    }
+
+    function clearSavedFirebaseConfig() {
+      localStorage.removeItem(CUSTOM_FB_STORAGE_KEY);
+      closeFirebaseConfigModal();
+      initFirebaseBackground();
+      showToast('သိမ်းဆည်းထားသော Config ဖျက်ပြီးပါပြီ');
+    }
 
       try {
         const [appMod, authMod, firestoreMod] = await Promise.all([
@@ -1300,7 +1452,7 @@
       activeShopId = '';
       activeShopPin = '';
       localStorage.removeItem(LS_KEYS.SESSION);
-      updateCloudStatusBadge('local', 'Local Mode');
+      updateCloudStatusBadge(currentUser ? 'ready' : 'local', currentUser ? 'Firebase Ready' : 'Local Mode');
       refreshAllUI();
       showToast('Cloud ချိတ်ဆက်မှု ဖြုတ်လိုက်ပါပြီ');
     }
@@ -1312,6 +1464,7 @@
 
       const dotColors = {
         synced: 'bg-emerald-500',
+        ready: 'bg-sky-500',
         syncing: 'bg-amber-400 animate-ping',
         offline: 'bg-rose-500',
         local: 'bg-slate-400'
@@ -2979,14 +3132,20 @@
     // =========================================================================
     // 13. INITIAL BOOTSTRAP ON WINDOW LOAD
     // =========================================================================
-    window.addEventListener('DOMContentLoaded', () => {
+    function bootShwePOSApp() {
       loadLocalCacheFirst();
       resetPosForm();
       setHistoryPeriodMode('day');
       setDashPeriodMode('month');
       refreshAllUI();
       initFirebaseBackground();
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', bootShwePOSApp);
+    } else {
+      bootShwePOSApp();
+    }
   </script>
 </body>
 </html>
