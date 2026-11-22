@@ -853,13 +853,13 @@
     // 1. SAFE FIREBASE CONFIGURATION (Collision-Free & Auto-Detecting)
     // =========================================================================
     const firebaseConfig = {
-  apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
-  authDomain: "my-apps-a87a3.firebaseapp.com",
-  projectId: "my-apps-a87a3",
-  storageBucket: "my-apps-a87a3.firebasestorage.app",
-  messagingSenderId: "880270085984",
-  appId: "1:880270085984:web:d65a0c381172def3af1805"
-};
+      apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
+      authDomain: "my-apps-a87a3.firebaseapp.com",
+      projectId: "my-apps-a87a3",
+      storageBucket: "my-apps-a87a3.firebasestorage.app",
+      messagingSenderId: "880270085984",
+      appId: "1:880270085984:web:d65a0c381172def3af1805"
+    };
 
     const CUSTOM_FB_STORAGE_KEY = 'shwepos_custom_firebase_cfg_v1';
 
@@ -877,17 +877,19 @@
     }
 
     function getSafeFirebaseConfig() {
-      // 1) Check if user pasted `const firebaseConfig = {...}` or `window.firebaseConfig = {...}`
+      // 1) Check `firebaseConfig` defined in script
       try {
         if (typeof firebaseConfig !== 'undefined' && isValidFirebaseConfigObj(firebaseConfig)) {
           return firebaseConfig;
         }
       } catch (e) {}
 
-      // 2) Check MY_FIREBASE_CONFIG edited directly in this file
-      if (isValidFirebaseConfigObj(MY_FIREBASE_CONFIG)) {
-        return MY_FIREBASE_CONFIG;
-      }
+      // 2) Check `MY_FIREBASE_CONFIG` if defined
+      try {
+        if (typeof MY_FIREBASE_CONFIG !== 'undefined' && isValidFirebaseConfigObj(MY_FIREBASE_CONFIG)) {
+          return MY_FIREBASE_CONFIG;
+        }
+      } catch (e) {}
 
       // 3) Check Firebase Config saved via in-app Settings modal
       try {
@@ -912,7 +914,7 @@
         }
       } catch (e) {}
 
-      return MY_FIREBASE_CONFIG;
+      return null;
     }
 
     const appId = (typeof __app_id !== 'undefined' && __app_id) ? String(__app_id) : 'shwepos-app';
@@ -923,10 +925,15 @@
     let db = null;
     let fsApi = null;
     let currentUser = null;
+    let authFallbackMode = false;
     let unsubShopDoc = null;
     let lastLocalWriteAt = 0;
     let cloudWriteTimer = null;
     let skipNextSnapshotEcho = false;
+
+    function canUseCloudFirestore() {
+      return Boolean((currentUser || authFallbackMode) && db && fsApi);
+    }
 
     // =========================================================================
     // 2. APPLICATION STATE & STORAGE KEYS
@@ -1121,7 +1128,7 @@
       safeLSSet(LS_KEYS.CUSTOMERS, customers);
       safeLSSet(LS_KEYS.VOUCHERS, vouchers);
 
-      if (activeShopId && currentUser && db && fsApi) {
+      if (activeShopId && canUseCloudFirestore()) {
         updateCloudStatusBadge('syncing', `Syncing (${activeShopId})...`);
         if (cloudWriteTimer) clearTimeout(cloudWriteTimer);
         cloudWriteTimer = setTimeout(() => {
@@ -1168,16 +1175,23 @@
         auth = authMod.getAuth(app);
         db = firestoreMod.getFirestore(app);
 
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && resolvedFirebaseConfig === getEnvFirebaseConfigSafe()) {
-          await authMod.signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await authMod.signInAnonymously(auth);
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && resolvedFirebaseConfig === getEnvFirebaseConfigSafe()) {
+            await authMod.signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await authMod.signInAnonymously(auth);
+          }
+          currentUser = auth.currentUser;
+          authFallbackMode = false;
+        } catch (authErr) {
+          console.warn('Anonymous auth skipped, using direct Firestore rules:', authErr);
+          currentUser = null;
+          authFallbackMode = true;
         }
-        currentUser = auth.currentUser;
 
-        if (currentUser && activeShopId) {
+        if (canUseCloudFirestore() && activeShopId) {
           attachSingleDocListener(activeShopId);
-        } else if (currentUser) {
+        } else if (canUseCloudFirestore()) {
           updateCloudStatusBadge('ready', 'Firebase Ready');
         } else {
           updateCloudStatusBadge('local', 'Local Mode');
@@ -1240,38 +1254,8 @@
       showToast('သိမ်းဆည်းထားသော Config ဖျက်ပြီးပါပြီ');
     }
 
-      try {
-        const [appMod, authMod, firestoreMod] = await Promise.all([
-          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
-          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
-          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js")
-        ]);
-
-        fsApi = firestoreMod;
-        app = appMod.initializeApp(firebaseConfig);
-        auth = authMod.getAuth(app);
-        db = firestoreMod.getFirestore(app);
-
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await authMod.signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await authMod.signInAnonymously(auth);
-        }
-        currentUser = auth.currentUser;
-
-        if (currentUser && activeShopId) {
-          attachSingleDocListener(activeShopId);
-        } else {
-          updateCloudStatusBadge('local', 'Local Mode');
-        }
-      } catch (err) {
-        console.warn('Firebase init fallback to local:', err);
-        updateCloudStatusBadge('local', 'Local Mode');
-      }
-    }
-
     function attachSingleDocListener(shopId) {
-      if (!currentUser || !db || !fsApi || !shopId) return;
+      if (!canUseCloudFirestore() || !shopId) return;
       if (unsubShopDoc) {
         unsubShopDoc();
         unsubShopDoc = null;
@@ -1334,7 +1318,7 @@
         showToast('PIN ဂဏန်း ၄ လုံး ထည့်ပါ', 'error');
         return;
       }
-      if (!currentUser || !db || !fsApi) {
+      if (!canUseCloudFirestore()) {
         showToast('Firebase Config မချိတ်ဆက်ရသေးပါ', 'error');
         return;
       }
@@ -1348,13 +1332,13 @@
 
         if (mode === 'join') {
           if (!snap.exists()) {
-            updateCloudStatusBadge('local', 'Local Mode');
+            updateCloudStatusBadge('ready', 'Firebase Ready');
             showToast('ဤဆိုင်ကုဒ် မရှိသေးပါ', 'error');
             return;
           }
           const data = snap.data();
           if (String(data.pin) !== pin) {
-            updateCloudStatusBadge('local', 'Local Mode');
+            updateCloudStatusBadge('ready', 'Firebase Ready');
             showToast('PIN နံပါတ် မှားယွင်းနေပါသည်', 'error');
             return;
           }
@@ -1378,7 +1362,7 @@
           showToast('Cloud ဆိုင်နှင့် ချိတ်ဆက်ပြီးပါပြီ');
         } else {
           if (snap.exists()) {
-            updateCloudStatusBadge('local', 'Local Mode');
+            updateCloudStatusBadge('ready', 'Firebase Ready');
             showToast('ဤဆိုင်ကုဒ် ရှိပြီးသားဖြစ်နေပါသည်', 'error');
             return;
           }
@@ -1403,13 +1387,17 @@
         }
       } catch (err) {
         console.error('Cloud connect error:', err);
-        updateCloudStatusBadge('offline', 'Sync Error');
-        showToast('ချိတ်ဆက်မှု မအောင်မြင်ပါ', 'error');
+        updateCloudStatusBadge('offline', 'Permission / Sync Error');
+        if (err && err.code === 'permission-denied') {
+          showToast('Firebase Console တွင် Anonymous Auth သို့မဟုတ် Firestore Rules ဖွင့်ပေးပါ', 'error');
+        } else {
+          showToast('ချိတ်ဆက်မှု မအောင်မြင်ပါ', 'error');
+        }
       }
     }
 
     async function manualCloudSync() {
-      if (!activeShopId || !currentUser || !db || !fsApi) {
+      if (!activeShopId || !canUseCloudFirestore()) {
         showToast('Cloud Shop ID ချိတ်ဆက်ထားခြင်း မရှိပါ', 'warning');
         return;
       }
@@ -1452,7 +1440,7 @@
       activeShopId = '';
       activeShopPin = '';
       localStorage.removeItem(LS_KEYS.SESSION);
-      updateCloudStatusBadge(currentUser ? 'ready' : 'local', currentUser ? 'Firebase Ready' : 'Local Mode');
+      updateCloudStatusBadge(canUseCloudFirestore() ? 'ready' : 'local', canUseCloudFirestore() ? 'Firebase Ready' : 'Local Mode');
       refreshAllUI();
       showToast('Cloud ချိတ်ဆက်မှု ဖြုတ်လိုက်ပါပြီ');
     }
