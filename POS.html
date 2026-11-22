@@ -1,0 +1,2992 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ShwePOS - အရောင်းဘောက်ချာနှင့် e-Voucher စနစ်</title>
+
+  <!-- Google Fonts: Noto Sans Myanmar & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Myanmar:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans Myanmar"', 'Inter', 'sans-serif'],
+            mono: ['Inter', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: 'var(--brand-50, #eff6ff)',
+              100: 'var(--brand-100, #dbeafe)',
+              500: 'var(--brand-500, #3b82f6)',
+              600: 'var(--brand-600, #2563eb)',
+              700: 'var(--brand-700, #1d4ed8)',
+              900: 'var(--brand-900, #1e3a8a)',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- html2canvas for E-Voucher PNG Image Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- SheetJS (xlsx) for Excel Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    :root {
+      --brand-50: #eff6ff;
+      --brand-100: #dbeafe;
+      --brand-500: #3b82f6;
+      --brand-600: #2563eb;
+      --brand-700: #1d4ed8;
+      --brand-900: #1e3a8a;
+    }
+
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Noto Sans Myanmar', 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      overflow-x: hidden;
+    }
+
+    /* Hide scrollbars cleanly on horizontal chip strips */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Bus-Ticketing Style Segmented Bottom Nav */
+    .bottom-nav-shadow {
+      box-shadow: 0 -6px 24px -4px rgba(15, 23, 42, 0.08);
+    }
+
+    /* Thermal 2-inch (58mm) Print Styling */
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #print-area, #print-area * {
+        visibility: visible !important;
+      }
+      #print-area {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
+      #print-area.thermal-58mm {
+        width: 58mm !important;
+        max-width: 58mm !important;
+        padding: 2mm !important;
+        font-size: 10px !important;
+        line-height: 1.35 !important;
+      }
+      #print-area.evoucher-standard {
+        width: 100% !important;
+        max-width: 148mm !important;
+        padding: 6mm !important;
+      }
+      @page {
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-24 select-none sm:select-auto">
+
+  <!-- Shared Unit Suggestions Datalist -->
+  <datalist id="unit-datalist">
+    <option value="ခု"></option>
+    <option value="ထုပ်"></option>
+    <option value="ဘူး"></option>
+    <option value="ဖာ"></option>
+    <option value="အိတ်"></option>
+    <option value="စုံ"></option>
+    <option value="ချောင်း"></option>
+    <option value="ရွက်"></option>
+    <option value="ကတ်"></option>
+    <option value="ပုလင်း"></option>
+    <option value="ပိဿာ"></option>
+    <option value="ကျပ်သား"></option>
+    <option value="Pcs"></option>
+    <option value="Box"></option>
+    <option value="Pack"></option>
+    <option value="Set"></option>
+    <option value="Kg"></option>
+    <option value="Bottle"></option>
+  </datalist>
+
+  <!-- ==================== TOP APP HEADER ==================== -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200/80">
+    <div class="max-w-3xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div id="header-logo-wrap" class="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-extrabold text-base shrink-0 overflow-hidden shadow-sm">
+          <span id="header-logo-fallback">S</span>
+          <img id="header-logo-img" src="" alt="Logo" class="w-full h-full object-cover hidden" />
+        </div>
+        <div class="min-w-0">
+          <h1 id="header-shop-name" class="text-sm sm:text-base font-extrabold text-slate-900 truncate leading-tight">ShwePOS</h1>
+          <p id="header-shop-sub" class="text-[11px] text-slate-500 truncate leading-tight">အရောင်းဘောက်ချာနှင့် e-Voucher</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 shrink-0">
+        <!-- Cloud Sync Status Pill -->
+        <button type="button" onclick="switchTab('settings')" id="cloud-status-pill" class="px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold flex items-center gap-1.5 transition">
+          <span id="cloud-status-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+          <span id="cloud-status-text">Local Mode</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN CONTENT CONTAINER ==================== -->
+  <main class="max-w-3xl mx-auto px-3 sm:px-4 pt-3 space-y-4">
+
+    <!-- =============================================================== -->
+    <!-- TAB 1: NEW VOUCHER / POS (အရောင်းဘောက်ချာ)                       -->
+    <!-- =============================================================== -->
+    <section id="tab-pos" class="space-y-3.5">
+
+      <!-- Edit Mode Banner -->
+      <div id="edit-mode-banner" class="hidden bg-amber-50 border border-amber-300 rounded-2xl p-3 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+          <div class="min-w-0">
+            <p class="text-xs font-extrabold text-amber-900 truncate">ဘောက်ချာ ပြင်ဆင်နေပါသည် (<span id="edit-voucher-no" class="font-mono"></span>)</p>
+            <p class="text-[11px] text-amber-700 truncate">ပြင်ဆင်ပြီးပါက "ပြင်ဆင်မှု သိမ်းမည်" ကို နှိပ်ပါ</p>
+          </div>
+        </div>
+        <button type="button" onclick="cancelEditVoucher()" class="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-amber-800 text-xs font-bold hover:bg-amber-100 shrink-0">
+          မပြင်တော့ပါ
+        </button>
+      </div>
+
+      <!-- Customer & Voucher Info Card -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-brand-600"></span>
+            <h2 class="text-xs sm:text-sm font-extrabold text-slate-800">ဝယ်သူနှင့် ဘောက်ချာ အချက်အလက်</h2>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="openCustomerPickerModal()" class="px-2.5 py-1 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 text-[11px] font-bold flex items-center gap-1 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span>ဝယ်သူရွေးမည် (<span id="pos-saved-cust-count">0</span>)</span>
+            </button>
+            <button type="button" onclick="clearPosCustomerFields()" title="ဝယ်သူအချက်အလက် ရှင်းမည်" class="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Saved Customer Quick-Select Strip -->
+        <div id="pos-recent-customers-wrap" class="hidden">
+          <div id="pos-recent-customers" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5"></div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div class="relative">
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ဝယ်သူအမည်</label>
+            <input type="text" id="pos-customer-name" list="customer-name-datalist" oninput="handleCustomerInputMatch('name')" placeholder="ဥပမာ - ဒေါ်အေးအေး" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium focus:outline-none focus:border-brand-600 focus:bg-white transition" />
+            <datalist id="customer-name-datalist"></datalist>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ဖုန်းနံပါတ်</label>
+            <input type="tel" id="pos-customer-phone" list="customer-phone-datalist" oninput="handleCustomerInputMatch('phone')" placeholder="09-xxxxxxxxx" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono focus:outline-none focus:border-brand-600 focus:bg-white transition" />
+            <datalist id="customer-phone-datalist"></datalist>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div class="sm:col-span-1">
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ရက်စွဲ</label>
+            <input type="date" id="pos-date" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-mono focus:outline-none focus:border-brand-600 focus:bg-white transition" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">လိပ်စာ / မှတ်ချက်</label>
+            <input type="text" id="pos-customer-address" placeholder="လိပ်စာ သို့မဟုတ် ပို့ဆောင်ရန် မှတ်ချက်" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-brand-600 focus:bg-white transition" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Product Picker Strip -->
+      <div id="pos-quick-products-card" class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-2.5 hidden">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-emerald-500"></span>
+            <h2 class="text-xs sm:text-sm font-extrabold text-slate-800">ပစ္စည်းအမြန်ရွေးရန်</h2>
+          </div>
+          <input type="text" id="pos-product-search" oninput="renderPosQuickProducts()" placeholder="ပစ္စည်းရှာရန်..." class="w-36 sm:w-48 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-brand-600" />
+        </div>
+        <div id="pos-quick-products-list" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto pr-0.5"></div>
+      </div>
+
+      <!-- Cart Items Card -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-brand-600"></span>
+            <h2 class="text-xs sm:text-sm font-extrabold text-slate-800">ဝယ်ယူသည့် ပစ္စည်းစာရင်း (<span id="pos-item-count">0</span>)</h2>
+          </div>
+          <button type="button" onclick="addManualCartRow()" class="px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 transition">
+            <span>+ ပစ္စည်းထည့်မည်</span>
+          </button>
+        </div>
+
+        <div id="pos-cart-list" class="space-y-2.5"></div>
+      </div>
+
+      <!-- Totals & Payment Calculation Card -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">လျှော့ဈေး (Discount)</label>
+            <div class="flex rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+              <input type="number" id="pos-discount" min="0" value="0" oninput="recalculatePosTotals()" class="w-full px-2.5 py-2 bg-transparent text-sm font-mono font-bold focus:outline-none" />
+              <select id="pos-discount-type" onchange="recalculatePosTotals()" class="px-2 bg-slate-200/70 text-xs font-bold text-slate-700 focus:outline-none">
+                <option value="amount">Ks</option>
+                <option value="percent">%</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ပို့ဆောင်ခ (Delivery)</label>
+            <input type="number" id="pos-delivery" min="0" value="0" oninput="recalculatePosTotals()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono font-bold focus:outline-none focus:border-brand-600" />
+          </div>
+
+          <div class="col-span-2 sm:col-span-1">
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ငွေပေးချေမှု စနစ်</label>
+            <select id="pos-payment-method" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:border-brand-600">
+              <option value="Cash">ငွေသား (Cash)</option>
+              <option value="KBZPay">KBZPay</option>
+              <option value="WavePay">WavePay</option>
+              <option value="AYA Pay">AYA Pay</option>
+              <option value="CB Pay">CB Pay</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Credit">အကြွေး (Credit)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Summary Breakdown Box -->
+        <div class="rounded-2xl bg-slate-900 text-white p-3.5 space-y-2">
+          <div id="pos-item-discount-row" class="hidden flex justify-between text-xs text-amber-300">
+            <span>ပစ္စည်းအလိုက် လျှော့ဈေး (Item Disc)</span>
+            <span id="pos-item-discount-display" class="font-mono font-semibold">- 0 Ks</span>
+          </div>
+          <div class="flex justify-between text-xs text-slate-300">
+            <span>စုစုပေါင်းကျသင့်ငွေ (Subtotal)</span>
+            <span id="pos-subtotal-display" class="font-mono font-semibold">0 Ks</span>
+          </div>
+          <div class="flex justify-between text-xs text-rose-300">
+            <span>ဘောက်ချာ လျှော့ဈေး (Voucher Disc)</span>
+            <span id="pos-discount-display" class="font-mono font-semibold">- 0 Ks</span>
+          </div>
+          <div class="flex justify-between text-xs text-sky-300">
+            <span>ပို့ဆောင်ခ (Delivery)</span>
+            <span id="pos-delivery-display" class="font-mono font-semibold">+ 0 Ks</span>
+          </div>
+          <div class="border-t border-slate-700/80 pt-2 flex justify-between items-center">
+            <span class="text-sm font-extrabold">စုစုပေါင်း ပေးချေရမည့်ငွေ</span>
+            <span id="pos-grandtotal-display" class="text-lg sm:text-xl font-mono font-extrabold text-amber-400">0 Ks</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5 pt-1">
+            <div>
+              <label class="block text-[10px] font-semibold text-slate-400 mb-1">ပေးငွေ (Paid Amount)</label>
+              <input type="number" id="pos-paid-amount" min="0" placeholder="အပြည့်ပေးလျှင် အလွတ်ထားပါ" oninput="recalculatePosTotals()" class="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm font-mono font-bold focus:outline-none focus:border-amber-400" />
+            </div>
+            <div class="flex flex-col justify-center items-end bg-slate-800/70 rounded-xl px-3 py-1.5">
+              <span id="pos-balance-label" class="text-[10px] font-semibold text-slate-400">ကျန်ငွေ / ပြန်အမ်းငွေ</span>
+              <span id="pos-balance-display" class="text-sm font-mono font-extrabold text-emerald-400">0 Ks</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Primary Action Buttons -->
+        <div class="grid grid-cols-3 gap-2 pt-1">
+          <button type="button" onclick="resetPosForm()" class="col-span-1 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm active:scale-95 transition">
+            အသစ်ပြန်စမည်
+          </button>
+          <button type="button" onclick="saveCurrentVoucher()" id="pos-save-btn" class="col-span-2 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-brand-600/20 active:scale-95 transition flex items-center justify-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span id="pos-save-btn-text">ဘောက်ချာ သိမ်းပြီး ထုတ်မည်</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============================================================== -->
+    <!-- TAB 2: VOUCHER HISTORY (ဘောက်ချာ မှတ်တမ်းများ)                  -->
+    <!-- =============================================================== -->
+    <section id="tab-history" class="hidden space-y-3">
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-brand-600"></span>
+            <h2 class="text-sm font-extrabold text-slate-800">ဘောက်ချာ မှတ်တမ်းများ (<span id="hist-total-badge">0</span>)</h2>
+          </div>
+          <button type="button" onclick="exportVouchersToExcel('history')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Excel ထုတ်မည်</span>
+          </button>
+        </div>
+
+        <!-- Period Filter Pills (Day / Month / Year / All) -->
+        <div class="grid grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl">
+          <button type="button" onclick="setHistoryPeriodMode('day')" id="hist-mode-day" class="py-1.5 rounded-lg text-xs font-bold transition bg-white text-brand-700 shadow-sm">နေ့အလိုက်</button>
+          <button type="button" onclick="setHistoryPeriodMode('month')" id="hist-mode-month" class="py-1.5 rounded-lg text-xs font-bold transition text-slate-600">လအလိုက်</button>
+          <button type="button" onclick="setHistoryPeriodMode('year')" id="hist-mode-year" class="py-1.5 rounded-lg text-xs font-bold transition text-slate-600">နှစ်အလိုက်</button>
+          <button type="button" onclick="setHistoryPeriodMode('all')" id="hist-mode-all" class="py-1.5 rounded-lg text-xs font-bold transition text-slate-600">အားလုံး</button>
+        </div>
+
+        <!-- Date / Customer / Search Filters -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div id="hist-date-input-wrap">
+            <input type="date" id="hist-filter-date" onchange="renderHistoryList()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold focus:outline-none focus:border-brand-600" />
+          </div>
+          <div>
+            <select id="hist-filter-customer" onchange="renderHistoryList()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:border-brand-600">
+              <option value="">ဝယ်သူအားလုံး (All Customers)</option>
+            </select>
+          </div>
+          <div>
+            <input type="text" id="hist-search-input" oninput="renderHistoryList()" placeholder="ဘောက်ချာ / အမည် / ဖုန်း / ပစ္စည်း ရှာရန်..." class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-brand-600" />
+          </div>
+        </div>
+
+        <!-- Filtered Summary Bar -->
+        <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/70 text-xs">
+          <span class="text-slate-600 font-semibold">စုစုပေါင်း: <strong id="hist-filtered-count" class="text-slate-900 font-mono">0</strong> စောင်</span>
+          <span class="text-slate-600 font-semibold">ရောင်းရငွေ: <strong id="hist-filtered-total" class="text-brand-700 font-mono">0 Ks</strong></span>
+        </div>
+      </div>
+
+      <!-- Voucher Cards List -->
+      <div id="history-voucher-list" class="space-y-2.5"></div>
+    </section>
+
+    <!-- =============================================================== -->
+    <!-- TAB 3: INTERACTIVE DASHBOARD & REPORTS (အစီရင်ခံစာ)              -->
+    <!-- =============================================================== -->
+    <section id="tab-dashboard" class="hidden space-y-3">
+
+      <!-- Period & Export Header Card -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-brand-600"></span>
+            <h2 class="text-sm font-extrabold text-slate-800">အရောင်း အစီရင်ခံစာ (Analytics)</h2>
+          </div>
+          <button type="button" onclick="exportVouchersToExcel('dashboard')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Excel ထုတ်မည်</span>
+          </button>
+        </div>
+
+        <!-- Period Selector (Day / Month / Year / All) -->
+        <div class="grid grid-cols-4 gap-1.5 bg-slate-100 p-1 rounded-xl">
+          <button type="button" onclick="setDashPeriodMode('day')" id="dash-mode-day" class="py-1.5 rounded-lg text-xs font-bold transition text-slate-600">နေ့အလိုက်</button>
+          <button type="button" onclick="setDashPeriodMode('month')" id="dash-mode-month" class="py-1.5 rounded-lg text-xs font-bold transition bg-white text-brand-700 shadow-sm">လအလိုက်</button>
+          <button type="button" onclick="setDashPeriodMode('year')" id="dash-mode-year" class="py-1.5 rounded-lg text-xs font-bold transition text-slate-600">နှစ်အလိုက်</button>
+          <button type="button" onclick="setDashPeriodMode('all')" id="dash-mode-all" class="py-1.5 rounded-lg text-xs font-bold transition text-slate-600">အားလုံး</button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div id="dash-date-input-wrap">
+            <input type="month" id="dash-filter-date" onchange="renderDashboard()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold focus:outline-none focus:border-brand-600" />
+          </div>
+          <div>
+            <select id="dash-filter-customer" onchange="onDashCustomerDropdownChange(this.value)" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:border-brand-600">
+              <option value="">ဝယ်သူအားလုံး (All Customers)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Power BI Style Active Cross-Filter Chips -->
+        <div id="dash-active-filters" class="hidden flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100"></div>
+      </div>
+
+      <!-- Interactive KPI Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <button type="button" onclick="toggleDashStatusFilter('all')" id="kpi-card-revenue" class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm text-left transition hover:border-brand-500">
+          <p class="text-[11px] font-semibold text-slate-500">စုစုပေါင်းအရောင်း</p>
+          <p id="kpi-revenue" class="text-base sm:text-lg font-mono font-extrabold text-slate-900 mt-0.5 truncate">0 Ks</p>
+          <p class="text-[10px] text-brand-600 font-semibold mt-0.5"><span id="kpi-vouchers">0</span> စောင်</p>
+        </button>
+
+        <button type="button" onclick="toggleDashStatusFilter('paid')" id="kpi-card-paid" class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm text-left transition hover:border-emerald-500">
+          <p class="text-[11px] font-semibold text-slate-500">ငွေရရှိပြီး</p>
+          <p id="kpi-paid" class="text-base sm:text-lg font-mono font-extrabold text-emerald-600 mt-0.5 truncate">0 Ks</p>
+          <p class="text-[10px] text-slate-400 font-semibold mt-0.5">နှိပ်၍ စစ်ထုတ်ရန်</p>
+        </button>
+
+        <button type="button" onclick="toggleDashStatusFilter('due')" id="kpi-card-due" class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm text-left transition hover:border-rose-500">
+          <p class="text-[11px] font-semibold text-slate-500">ရရန်ကျန်ငွေ</p>
+          <p id="kpi-due" class="text-base sm:text-lg font-mono font-extrabold text-rose-600 mt-0.5 truncate">0 Ks</p>
+          <p class="text-[10px] text-slate-400 font-semibold mt-0.5"><span id="kpi-due-count">0</span> စောင် ကျန်</p>
+        </button>
+
+        <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm text-left">
+          <p class="text-[11px] font-semibold text-slate-500">ဝယ်သူဦးရေ</p>
+          <p id="kpi-customers" class="text-base sm:text-lg font-mono font-extrabold text-indigo-600 mt-0.5 truncate">0</p>
+          <p class="text-[10px] text-slate-400 font-semibold mt-0.5">ပျမ်းမျှ: <span id="kpi-avg" class="font-mono">0</span></p>
+        </div>
+      </div>
+
+      <!-- Interactive Sales Trend Bar Chart -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs sm:text-sm font-extrabold text-slate-800">ရက်အလိုက် အရောင်းပြ ဂရပ်ဖ်</h3>
+          <span class="text-[10px] font-semibold text-slate-400">Bar ကိုနှိပ်၍ စစ်ထုတ်နိုင်သည်</span>
+        </div>
+        <div id="dash-bar-chart" class="h-40 flex items-end gap-1.5 pt-4 pb-1 overflow-x-auto no-scrollbar border-b border-slate-100"></div>
+      </div>
+
+      <!-- Payment Breakdown & Top Customers Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <!-- Payment Method Donut Chart -->
+        <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-2.5">
+          <h3 class="text-xs sm:text-sm font-extrabold text-slate-800">ငွေပေးချေမှု အမျိုးအစား</h3>
+          <div class="flex items-center gap-3">
+            <div class="relative w-28 h-28 shrink-0">
+              <svg id="dash-donut-svg" viewBox="0 0 36 36" class="w-full h-full -rotate-90"></svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span class="text-[9px] font-semibold text-slate-400">စုစုပေါင်း</span>
+                <span id="dash-donut-center" class="text-[11px] font-mono font-extrabold text-slate-800">0</span>
+              </div>
+            </div>
+            <div id="dash-payment-legend" class="flex-1 space-y-1.5 min-w-0"></div>
+          </div>
+        </div>
+
+        <!-- Top Customers Ranking -->
+        <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs sm:text-sm font-extrabold text-slate-800">အဝယ်များဆုံး ဝယ်သူများ</h3>
+            <span class="text-[10px] font-semibold text-slate-400">နှိပ်၍ စစ်ထုတ်ရန်</span>
+          </div>
+          <div id="dash-top-customers" class="space-y-1.5 max-h-48 overflow-y-auto pr-0.5"></div>
+        </div>
+      </div>
+
+      <!-- Top Selling Products Ranking -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs sm:text-sm font-extrabold text-slate-800">အရောင်းရဆုံး ပစ္စည်းစာရင်း</h3>
+          <span class="text-[10px] font-semibold text-slate-400">နှိပ်၍ စစ်ထုတ်ရန်</span>
+        </div>
+        <div id="dash-top-products" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+      </div>
+
+      <!-- Power BI Drill-Down Detailed Table -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs sm:text-sm font-extrabold text-slate-800">အသေးစိတ် ဘောက်ချာစာရင်း (<span id="dash-drill-count" class="font-mono">0</span>)</h3>
+          <span class="text-[11px] font-mono font-extrabold text-brand-700" id="dash-drill-sum">0 Ks</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-slate-200 text-[11px] text-slate-500">
+                <th class="py-2 pr-2">ဘောက်ချာ</th>
+                <th class="py-2 px-2">ဝယ်သူ</th>
+                <th class="py-2 px-2">ရက်စွဲ</th>
+                <th class="py-2 pl-2 text-right">ပမာဏ</th>
+              </tr>
+            </thead>
+            <tbody id="dash-drill-tbody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============================================================== -->
+    <!-- TAB 4: SETTINGS, PRODUCTS, CUSTOMERS & CLOUD SYNC (ဆက်တင်)       -->
+    <!-- =============================================================== -->
+    <section id="tab-settings" class="hidden space-y-3.5">
+
+      <!-- Cloud Sync (Multi-Device Firebase) Card -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-indigo-600"></span>
+            <h2 class="text-sm font-extrabold text-slate-800">Cloud Sync (ဖုန်းအားလုံး ချိတ်ဆက်ရန်)</h2>
+          </div>
+          <span id="settings-sync-badge" class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">Local Mode</span>
+        </div>
+
+        <div id="cloud-disconnected-view" class="space-y-2.5">
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">ဆိုင်ကုဒ် (Shop ID)</label>
+              <input type="text" id="cloud-shop-id-input" placeholder="ဥပမာ - shweshop01" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-mono uppercase focus:outline-none focus:border-brand-600" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">လျှို့ဝှက် PIN (ဂဏန်း ၄ လုံး)</label>
+              <input type="password" id="cloud-shop-pin-input" maxlength="4" inputmode="numeric" placeholder="••••" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-mono focus:outline-none focus:border-brand-600" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" onclick="connectShopSession('join')" class="py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold active:scale-95 transition">
+              ရှိပြီးသားဆိုင် ဝင်မည်
+            </button>
+            <button type="button" onclick="connectShopSession('create')" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold active:scale-95 transition">
+              ဆိုင်ကုဒ်အသစ် ဖွင့်မည်
+            </button>
+          </div>
+        </div>
+
+        <div id="cloud-connected-view" class="hidden space-y-2.5">
+          <div class="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between">
+            <div>
+              <p class="text-xs font-extrabold text-indigo-950">Shop ID: <span id="connected-shop-id" class="font-mono"></span></p>
+              <p class="text-[11px] text-indigo-700">အခြားဖုန်းများမှ ဤ Shop ID နှင့် PIN ဖြင့် ဝင်သုံးနိုင်ပါသည်</p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button type="button" onclick="manualCloudSync()" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold">Sync</button>
+              <button type="button" onclick="disconnectShopSession()" class="px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-rose-600 text-xs font-bold">ထွက်မည်</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product Catalog Management Card -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-emerald-600"></span>
+            <h2 class="text-sm font-extrabold text-slate-800">ပစ္စည်းစာရင်း စီမံခန့်ခွဲမှု (<span id="settings-prod-count">0</span>)</h2>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-2">
+          <input type="hidden" id="edit-product-id" value="" />
+          <div class="col-span-12 sm:col-span-5">
+            <input type="text" id="prod-name-input" placeholder="ပစ္စည်းအမည်" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+          <div class="col-span-5 sm:col-span-3">
+            <input type="text" id="prod-unit-input" list="unit-datalist" placeholder="ယူနစ် (ခု/ထုပ်)" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+          <div class="col-span-4 sm:col-span-2">
+            <input type="number" id="prod-price-input" min="0" placeholder="ဈေးနှုန်း" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-mono focus:outline-none focus:border-brand-600" />
+          </div>
+          <div class="col-span-3 sm:col-span-2">
+            <button type="button" onclick="saveProductItem()" id="prod-save-btn" class="w-full h-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold active:scale-95 transition">
+              ထည့်မည်
+            </button>
+          </div>
+        </div>
+
+        <div id="settings-product-list" class="space-y-1.5 max-h-60 overflow-y-auto pr-0.5"></div>
+      </div>
+
+      <!-- Saved Customer Directory Management Card -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-amber-500"></span>
+            <h2 class="text-sm font-extrabold text-slate-800">ဝယ်သူစာရင်း မှတ်တမ်း (<span id="settings-cust-count">0</span>)</h2>
+          </div>
+          <input type="text" id="settings-cust-search" oninput="renderSettingsCustomerList()" placeholder="ဝယ်သူရှာရန်..." class="w-36 sm:w-44 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:border-brand-600" />
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+          <input type="hidden" id="edit-customer-id" value="" />
+          <div class="sm:col-span-4">
+            <input type="text" id="cust-name-input" placeholder="ဝယ်သူအမည်" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+          <div class="sm:col-span-3">
+            <input type="tel" id="cust-phone-input" placeholder="ဖုန်းနံပါတ်" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-mono focus:outline-none focus:border-brand-600" />
+          </div>
+          <div class="sm:col-span-3">
+            <input type="text" id="cust-address-input" placeholder="လိပ်စာ / မှတ်ချက်" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+          <div class="sm:col-span-2">
+            <button type="button" onclick="saveCustomerDirectoryItem()" id="cust-save-btn" class="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold active:scale-95 transition">
+              သိမ်းမည်
+            </button>
+          </div>
+        </div>
+
+        <div id="settings-customer-list" class="space-y-1.5 max-h-60 overflow-y-auto pr-0.5"></div>
+      </div>
+
+      <!-- Shop Profile, Logo, QR Code & Theme Settings -->
+      <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-4 rounded-full bg-brand-600"></span>
+          <h2 class="text-sm font-extrabold text-slate-800">ဆိုင်အချက်အလက်နှင့် ဘောက်ချာပုံစံ</h2>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ဆိုင်အမည်</label>
+            <input type="text" id="set-shop-name" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold focus:outline-none focus:border-brand-600" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ဆိုင်ဖုန်းနံပါတ်</label>
+            <input type="text" id="set-shop-phone" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono focus:outline-none focus:border-brand-600" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ဆိုင်လိပ်စာ</label>
+            <input type="text" id="set-shop-address" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">ဘောက်ချာအောက်ခြေ မှတ်ချက်</label>
+            <input type="text" id="set-shop-footer" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:border-brand-600" />
+          </div>
+        </div>
+
+        <!-- Theme Color Picker -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1.5">ဘောက်ချာ အရောင် (Theme Color)</label>
+          <div class="flex items-center gap-2.5">
+            <button type="button" onclick="setThemeColor('blue')" class="w-8 h-8 rounded-full bg-blue-600 ring-2 ring-offset-2 ring-blue-600"></button>
+            <button type="button" onclick="setThemeColor('emerald')" class="w-8 h-8 rounded-full bg-emerald-600"></button>
+            <button type="button" onclick="setThemeColor('rose')" class="w-8 h-8 rounded-full bg-rose-600"></button>
+            <button type="button" onclick="setThemeColor('amber')" class="w-8 h-8 rounded-full bg-amber-600"></button>
+            <button type="button" onclick="setThemeColor('violet')" class="w-8 h-8 rounded-full bg-violet-600"></button>
+            <button type="button" onclick="setThemeColor('slate')" class="w-8 h-8 rounded-full bg-slate-800"></button>
+          </div>
+        </div>
+
+        <!-- Logo & Payment QR Upload -->
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2">
+            <p class="text-[11px] font-bold text-slate-700">ဆိုင်လိုဂို (Logo)</p>
+            <div class="w-16 h-16 mx-auto rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
+              <img id="set-logo-preview" src="" alt="" class="w-full h-full object-cover hidden" />
+              <span id="set-logo-placeholder" class="text-[10px] text-slate-400">No Logo</span>
+            </div>
+            <div class="flex justify-center gap-1.5">
+              <label class="px-2.5 py-1 rounded-lg bg-slate-800 text-white text-[11px] font-bold cursor-pointer">
+                ပုံရွေးမည်
+                <input type="file" accept="image/*" onchange="handleImageUpload(event, 'logo')" class="hidden" />
+              </label>
+              <button type="button" onclick="removeSettingImage('logo')" class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 text-[11px] font-bold">ဖျက်</button>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2">
+            <p class="text-[11px] font-bold text-slate-700">ငွေလွှဲ QR Code</p>
+            <div class="w-16 h-16 mx-auto rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
+              <img id="set-qr-preview" src="" alt="" class="w-full h-full object-contain hidden" />
+              <span id="set-qr-placeholder" class="text-[10px] text-slate-400">No QR</span>
+            </div>
+            <div class="flex justify-center gap-1.5">
+              <label class="px-2.5 py-1 rounded-lg bg-slate-800 text-white text-[11px] font-bold cursor-pointer">
+                QR ရွေးမည်
+                <input type="file" accept="image/*" onchange="handleImageUpload(event, 'qr')" class="hidden" />
+              </label>
+              <button type="button" onclick="removeSettingImage('qr')" class="px-2 py-1 rounded-lg bg-rose-100 text-rose-700 text-[11px] font-bold">ဖျက်</button>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" onclick="saveShopSettings()" class="w-full py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-sm shadow-sm active:scale-95 transition">
+          ဆိုင်အချက်အလက်များ သိမ်းဆည်းမည်
+        </button>
+
+        <!-- JSON Backup & Restore -->
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="exportBackupJSON()" class="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold">
+            Backup သိမ်းမည် (.json)
+          </button>
+          <label class="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold text-center cursor-pointer">
+            Backup ပြန်တင်မည်
+            <input type="file" accept=".json" onchange="importBackupJSON(event)" class="hidden" />
+          </label>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== BUS-TICKETING STYLE SEGMENTED BOTTOM NAVIGATION ==================== -->
+  <nav class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 bottom-nav-shadow">
+    <div class="max-w-3xl mx-auto px-2 py-1.5">
+      <div class="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-2xl">
+        <button type="button" onclick="switchTab('pos')" id="nav-btn-pos" class="py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 bg-brand-600 text-white shadow-sm transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          <span class="text-[11px] font-extrabold">အရောင်း</span>
+        </button>
+
+        <button type="button" onclick="switchTab('history')" id="nav-btn-history" class="py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-slate-600 hover:text-slate-900 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          <span class="text-[11px] font-bold">မှတ်တမ်း</span>
+        </button>
+
+        <button type="button" onclick="switchTab('dashboard')" id="nav-btn-dashboard" class="py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-slate-600 hover:text-slate-900 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+          <span class="text-[11px] font-bold">အစီရင်ခံစာ</span>
+        </button>
+
+        <button type="button" onclick="switchTab('settings')" id="nav-btn-settings" class="py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-slate-600 hover:text-slate-900 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span class="text-[11px] font-bold">ဆက်တင်</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ==================== CUSTOMER PICKER MODAL ==================== -->
+  <div id="customer-picker-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-4 shadow-2xl space-y-3 max-h-[82vh] flex flex-col">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-900">သိမ်းဆည်းထားသော ဝယ်သူရွေးရန်</h3>
+        <button type="button" onclick="closeCustomerPickerModal()" class="p-1.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <input type="text" id="picker-cust-search" oninput="renderCustomerPickerList()" placeholder="အမည် သို့မဟုတ် ဖုန်းနံပါတ် ရိုက်ရှာပါ..." class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-brand-600" />
+      <div id="picker-cust-list" class="flex-1 overflow-y-auto space-y-1.5 pr-0.5"></div>
+    </div>
+  </div>
+
+  <!-- ==================== E-VOUCHER & 2-INCH THERMAL PRINT MODAL ==================== -->
+  <div id="voucher-preview-modal" class="fixed inset-0 z-50 hidden bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-slate-100 w-full max-w-lg rounded-3xl p-3 sm:p-4 shadow-2xl space-y-3 my-auto max-h-[94vh] flex flex-col">
+
+      <!-- Modal Top Controls: Format Switcher (E-Voucher vs 2-inch 58mm Thermal) -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="grid grid-cols-2 gap-1 bg-white p-1 rounded-xl border border-slate-200">
+          <button type="button" onclick="setReceiptPrintFormat('evoucher')" id="fmt-btn-evoucher" class="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-brand-600 text-white transition">
+            e-Voucher ပုံစံ
+          </button>
+          <button type="button" onclick="setReceiptPrintFormat('thermal58')" id="fmt-btn-thermal58" class="px-3 py-1.5 rounded-lg text-xs font-extrabold text-slate-600 transition">
+            ၂ လက်မ (58mm) စလစ်
+          </button>
+        </div>
+        <button type="button" onclick="closeVoucherPreview()" class="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-200">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Scrollable Printable Receipt Canvas -->
+      <div class="flex-1 overflow-y-auto flex justify-center py-1">
+        <div id="print-area" class="evoucher-standard bg-white text-slate-900 rounded-2xl shadow-md border border-slate-200 w-full max-w-md p-4 sm:p-5 transition-all"></div>
+      </div>
+
+      <!-- Bottom Export / Print / Share Buttons -->
+      <div class="grid grid-cols-3 gap-2">
+        <button type="button" onclick="downloadVoucherPNG()" class="py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex items-center justify-center gap-1 shadow-sm active:scale-95 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <span>ပုံသိမ်းမည်</span>
+        </button>
+        <button type="button" onclick="shareVoucherPNG()" class="py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold flex items-center justify-center gap-1 shadow-sm active:scale-95 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+          <span>Share ပို့မည်</span>
+        </button>
+        <button type="button" onclick="window.print()" class="py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold flex items-center justify-center gap-1 shadow-sm active:scale-95 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          <span>Print ထုတ်မည်</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CUSTOM CONFIRMATION DIALOG ==================== -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-xs rounded-3xl p-4 shadow-2xl space-y-3 text-center">
+      <p id="confirm-modal-message" class="text-sm font-bold text-slate-800 pt-1"></p>
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <button type="button" onclick="closeConfirmModal(false)" class="py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">မလုပ်တော့ပါ</button>
+        <button type="button" onclick="closeConfirmModal(true)" class="py-2.5 rounded-xl bg-rose-600 text-white text-xs font-extrabold">သေချာပါသည်</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST NOTIFICATION ==================== -->
+  <div id="toast-container" class="fixed top-16 inset-x-0 z-50 flex flex-col items-center gap-1.5 pointer-events-none px-3"></div>
+
+  <!-- ==================== APPLICATION ENGINE & FIREBASE SYNC ==================== -->
+  <script>
+    // =========================================================================
+    // 1. SAFE FIREBASE CONFIGURATION (Zero Top-Level Await / Safe JSON Parse)
+    // =========================================================================
+    const firebaseConfig = {
+  apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
+  authDomain: "my-apps-a87a3.firebaseapp.com",
+  projectId: "my-apps-a87a3",
+  storageBucket: "my-apps-a87a3.firebasestorage.app",
+  messagingSenderId: "880270085984",
+  appId: "1:880270085984:web:d65a0c381172def3af1805"
+};
+
+    function getSafeFirebaseConfig() {
+      try {
+        if (typeof __firebase_config === 'undefined' || !__firebase_config) {
+          return DEFAULT_FIREBASE_CONFIG;
+        }
+        if (typeof __firebase_config === 'object') {
+          return __firebase_config;
+        }
+        const trimmed = String(__firebase_config).trim();
+        if (!trimmed || trimmed === 'undefined' || trimmed === 'null') {
+          return DEFAULT_FIREBASE_CONFIG;
+        }
+        return JSON.parse(trimmed);
+      } catch (e) {
+        return DEFAULT_FIREBASE_CONFIG;
+      }
+    }
+
+    const appId = (typeof __app_id !== 'undefined' && __app_id) ? String(__app_id) : 'shwepos-app';
+    const firebaseConfig = getSafeFirebaseConfig();
+
+    let app = null;
+    let auth = null;
+    let db = null;
+    let fsApi = null;
+    let currentUser = null;
+    let unsubShopDoc = null;
+    let lastLocalWriteAt = 0;
+    let cloudWriteTimer = null;
+    let skipNextSnapshotEcho = false;
+
+    // =========================================================================
+    // 2. APPLICATION STATE & STORAGE KEYS
+    // =========================================================================
+    const LS_KEYS = {
+      SETTINGS: 'shwepos_settings_v3',
+      PRODUCTS: 'shwepos_products_v3',
+      CUSTOMERS: 'shwepos_customers_v3',
+      VOUCHERS: 'shwepos_vouchers_v3',
+      SESSION: 'shwepos_cloud_session_v3'
+    };
+
+    const THEME_PALETTES = {
+      blue:    { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 900: '#1e3a8a' },
+      emerald: { 50: '#ecfdf5', 100: '#d1fae5', 500: '#10b981', 600: '#059669', 700: '#047857', 900: '#064e3b' },
+      rose:    { 50: '#fff1f2', 100: '#ffe4e6', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 900: '#881337' },
+      amber:   { 50: '#fffbeb', 100: '#fef3c7', 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 900: '#78350f' },
+      violet:  { 50: '#f5f3ff', 100: '#ede9fe', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 900: '#4c1d95' },
+      slate:   { 50: '#f8fafc', 100: '#f1f5f9', 500: '#64748b', 600: '#334155', 700: '#1e293b', 900: '#0f172a' }
+    };
+
+    let shopSettings = {
+      shopName: 'ShwePOS',
+      phone: '',
+      address: '',
+      footerNote: 'ဝယ်ယူအားပေးမှုကို ကျေးဇူးအထူးတင်ရှိပါသည်။',
+      themeColor: 'blue',
+      logoDataUrl: '',
+      qrDataUrl: ''
+    };
+
+    let products = [];
+    let customers = [];
+    let vouchers = [];
+    let posCart = [];
+    let editingVoucherId = null;
+    let activeShopId = '';
+    let activeShopPin = '';
+
+    // History & Dashboard Filter States
+    let historyPeriodMode = 'day';
+    let dashPeriodMode = 'month';
+    let dashCrossFilter = {
+      date: '',
+      paymentMethod: '',
+      productName: '',
+      customerKey: '',
+      status: 'all'
+    };
+
+    let activePreviewVoucher = null;
+    let activeReceiptFormat = 'evoucher';
+    let confirmCallback = null;
+
+    // =========================================================================
+    // 3. UTILITY HELPERS
+    // =========================================================================
+    function safeLSGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function safeLSSet(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {
+        console.warn('localStorage write warning:', e);
+      }
+    }
+
+    function escapeHTML(str) {
+      return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatNumberOnly(num) {
+      const n = Math.round(Number(num) || 0);
+      return n.toLocaleString('en-US');
+    }
+
+    function formatMMK(num) {
+      return `${formatNumberOnly(num)} Ks`;
+    }
+
+    function getTodayISO() {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function getCurrentMonthISO() {
+      return getTodayISO().slice(0, 7);
+    }
+
+    function getCurrentYearISO() {
+      return getTodayISO().slice(0, 4);
+    }
+
+    function generateId(prefix) {
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+
+    function generateVoucherNumber() {
+      const d = new Date();
+      const yymmdd = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      const seq = String(vouchers.length + 1).padStart(3, '0');
+      return `INV-${yymmdd}-${seq}`;
+    }
+
+    function getCustomerKey(name, phone) {
+      const cleanPhone = String(phone || '').trim().replace(/\s+/g, '');
+      const cleanName = String(name || '').trim().toLowerCase();
+      if (cleanPhone) return `ph:${cleanPhone}`;
+      if (cleanName) return `nm:${cleanName}`;
+      return '';
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      const colors = {
+        success: 'bg-slate-900 text-white border-slate-700',
+        error: 'bg-rose-600 text-white border-rose-500',
+        warning: 'bg-amber-500 text-slate-950 border-amber-400'
+      };
+      el.className = `px-4 py-2 rounded-full border shadow-lg text-xs font-extrabold transition-all transform translate-y-0 ${colors[type] || colors.success}`;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-8px)';
+        setTimeout(() => el.remove(), 220);
+      }, 2400);
+    }
+
+    function openConfirmModal(message, onConfirm) {
+      document.getElementById('confirm-modal-message').textContent = message;
+      confirmCallback = onConfirm;
+      document.getElementById('confirm-modal').classList.remove('hidden');
+    }
+
+    function closeConfirmModal(confirmed) {
+      document.getElementById('confirm-modal').classList.add('hidden');
+      if (confirmed && typeof confirmCallback === 'function') {
+        confirmCallback();
+      }
+      confirmCallback = null;
+    }
+
+    // =========================================================================
+    // 4. SINGLE-DOCUMENT PACKED STORAGE & ULTRA-LOW READ SYNC
+    // =========================================================================
+    function getPackedShopDocRef(shopId) {
+      return fsApi.doc(db, 'artifacts', appId, 'public', 'data', 'shwepos_shops', shopId);
+    }
+
+    function loadLocalCacheFirst() {
+      const savedSettings = safeLSGet(LS_KEYS.SETTINGS, null);
+      if (savedSettings) shopSettings = { ...shopSettings, ...savedSettings };
+
+      products = safeLSGet(LS_KEYS.PRODUCTS, []);
+      customers = safeLSGet(LS_KEYS.CUSTOMERS, []);
+      vouchers = safeLSGet(LS_KEYS.VOUCHERS, []);
+
+      if (customers.length === 0 && vouchers.length > 0) {
+        rebuildCustomerDirectoryFromVouchers();
+      }
+
+      const session = safeLSGet(LS_KEYS.SESSION, null);
+      if (session && session.shopId) {
+        activeShopId = session.shopId;
+        activeShopPin = session.pin || '';
+      }
+    }
+
+    function persistAllState() {
+      const nowIso = new Date().toISOString();
+      lastLocalWriteAt = Date.now();
+
+      safeLSSet(LS_KEYS.SETTINGS, shopSettings);
+      safeLSSet(LS_KEYS.PRODUCTS, products);
+      safeLSSet(LS_KEYS.CUSTOMERS, customers);
+      safeLSSet(LS_KEYS.VOUCHERS, vouchers);
+
+      if (activeShopId && currentUser && db && fsApi) {
+        updateCloudStatusBadge('syncing', `Syncing (${activeShopId})...`);
+        if (cloudWriteTimer) clearTimeout(cloudWriteTimer);
+        cloudWriteTimer = setTimeout(() => {
+          lastLocalWriteAt = Date.now();
+          fsApi.setDoc(getPackedShopDocRef(activeShopId), {
+            shopId: activeShopId,
+            pin: activeShopPin,
+            settings: shopSettings,
+            products,
+            customers,
+            vouchers,
+            updatedAt: nowIso
+          }, { merge: true })
+            .then(() => {
+              updateCloudStatusBadge('synced', `Cloud • ${activeShopId}`);
+            })
+            .catch((err) => {
+              console.error('Background Firestore write error:', err);
+              updateCloudStatusBadge('offline', `Offline (${activeShopId})`);
+            });
+        }, 450);
+      }
+    }
+
+    async function initFirebaseBackground() {
+      const isPlaceholderConfig = !firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === 'YOUR_API_KEY';
+      if (isPlaceholderConfig) {
+        updateCloudStatusBadge('local', activeShopId ? `Local (${activeShopId})` : 'Local Mode');
+        return;
+      }
+
+      try {
+        const [appMod, authMod, firestoreMod] = await Promise.all([
+          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
+          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
+          import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js")
+        ]);
+
+        fsApi = firestoreMod;
+        app = appMod.initializeApp(firebaseConfig);
+        auth = authMod.getAuth(app);
+        db = firestoreMod.getFirestore(app);
+
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await authMod.signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await authMod.signInAnonymously(auth);
+        }
+        currentUser = auth.currentUser;
+
+        if (currentUser && activeShopId) {
+          attachSingleDocListener(activeShopId);
+        } else {
+          updateCloudStatusBadge('local', 'Local Mode');
+        }
+      } catch (err) {
+        console.warn('Firebase init fallback to local:', err);
+        updateCloudStatusBadge('local', 'Local Mode');
+      }
+    }
+
+    function attachSingleDocListener(shopId) {
+      if (!currentUser || !db || !fsApi || !shopId) return;
+      if (unsubShopDoc) {
+        unsubShopDoc();
+        unsubShopDoc = null;
+      }
+
+      updateCloudStatusBadge('syncing', `Syncing (${shopId})...`);
+
+      unsubShopDoc = fsApi.onSnapshot(
+        getPackedShopDocRef(shopId),
+        { includeMetadataChanges: false },
+        (docSnap) => {
+          updateCloudStatusBadge('synced', `Cloud • ${shopId}`);
+          if (!docSnap.exists()) return;
+          if (skipNextSnapshotEcho) {
+            skipNextSnapshotEcho = false;
+            return;
+          }
+          if (Date.now() - lastLocalWriteAt < 1500) return;
+
+          const data = docSnap.data();
+          if (data.settings) {
+            shopSettings = { ...shopSettings, ...data.settings };
+            safeLSSet(LS_KEYS.SETTINGS, shopSettings);
+          }
+          if (Array.isArray(data.products)) {
+            products = data.products;
+            safeLSSet(LS_KEYS.PRODUCTS, products);
+          }
+          if (Array.isArray(data.customers)) {
+            customers = data.customers;
+            safeLSSet(LS_KEYS.CUSTOMERS, customers);
+          }
+          if (Array.isArray(data.vouchers)) {
+            vouchers = data.vouchers;
+            safeLSSet(LS_KEYS.VOUCHERS, vouchers);
+          }
+
+          refreshAllUI();
+        },
+        (err) => {
+          console.error('Snapshot listener error:', err);
+          updateCloudStatusBadge('offline', `Offline (${shopId})`);
+        }
+      );
+    }
+
+    function sanitizeShopId(raw) {
+      return String(raw || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    }
+
+    async function connectShopSession(mode) {
+      const rawId = document.getElementById('cloud-shop-id-input').value;
+      const pin = document.getElementById('cloud-shop-pin-input').value.trim();
+
+      if (!rawId || sanitizeShopId(rawId).length < 3) {
+        showToast('ဆိုင်ကုဒ် (Shop ID) အနည်းဆုံး ၃ လုံး ထည့်ပါ', 'error');
+        return;
+      }
+      if (!/^\d{4}$/.test(pin)) {
+        showToast('PIN ဂဏန်း ၄ လုံး ထည့်ပါ', 'error');
+        return;
+      }
+      if (!currentUser || !db || !fsApi) {
+        showToast('Firebase Config မချိတ်ဆက်ရသေးပါ', 'error');
+        return;
+      }
+
+      const cleanId = sanitizeShopId(rawId);
+      updateCloudStatusBadge('syncing', `Checking (${cleanId})...`);
+
+      try {
+        const docRef = getPackedShopDocRef(cleanId);
+        const snap = await fsApi.getDoc(docRef);
+
+        if (mode === 'join') {
+          if (!snap.exists()) {
+            updateCloudStatusBadge('local', 'Local Mode');
+            showToast('ဤဆိုင်ကုဒ် မရှိသေးပါ', 'error');
+            return;
+          }
+          const data = snap.data();
+          if (String(data.pin) !== pin) {
+            updateCloudStatusBadge('local', 'Local Mode');
+            showToast('PIN နံပါတ် မှားယွင်းနေပါသည်', 'error');
+            return;
+          }
+          activeShopId = cleanId;
+          activeShopPin = pin;
+          safeLSSet(LS_KEYS.SESSION, { shopId: activeShopId, pin: activeShopPin });
+
+          if (data.settings) shopSettings = { ...shopSettings, ...data.settings };
+          if (Array.isArray(data.products)) products = data.products;
+          if (Array.isArray(data.customers)) customers = data.customers;
+          if (Array.isArray(data.vouchers)) vouchers = data.vouchers;
+
+          safeLSSet(LS_KEYS.SETTINGS, shopSettings);
+          safeLSSet(LS_KEYS.PRODUCTS, products);
+          safeLSSet(LS_KEYS.CUSTOMERS, customers);
+          safeLSSet(LS_KEYS.VOUCHERS, vouchers);
+
+          skipNextSnapshotEcho = true;
+          attachSingleDocListener(activeShopId);
+          refreshAllUI();
+          showToast('Cloud ဆိုင်နှင့် ချိတ်ဆက်ပြီးပါပြီ');
+        } else {
+          if (snap.exists()) {
+            updateCloudStatusBadge('local', 'Local Mode');
+            showToast('ဤဆိုင်ကုဒ် ရှိပြီးသားဖြစ်နေပါသည်', 'error');
+            return;
+          }
+          activeShopId = cleanId;
+          activeShopPin = pin;
+          safeLSSet(LS_KEYS.SESSION, { shopId: activeShopId, pin: activeShopPin });
+
+          await fsApi.setDoc(docRef, {
+            shopId: activeShopId,
+            pin: activeShopPin,
+            settings: shopSettings,
+            products,
+            customers,
+            vouchers,
+            updatedAt: new Date().toISOString()
+          });
+
+          skipNextSnapshotEcho = true;
+          attachSingleDocListener(activeShopId);
+          refreshAllUI();
+          showToast('ဆိုင်ကုဒ်အသစ် ဖွင့်လှစ်ပြီးပါပြီ');
+        }
+      } catch (err) {
+        console.error('Cloud connect error:', err);
+        updateCloudStatusBadge('offline', 'Sync Error');
+        showToast('ချိတ်ဆက်မှု မအောင်မြင်ပါ', 'error');
+      }
+    }
+
+    async function manualCloudSync() {
+      if (!activeShopId || !currentUser || !db || !fsApi) {
+        showToast('Cloud Shop ID ချိတ်ဆက်ထားခြင်း မရှိပါ', 'warning');
+        return;
+      }
+      if (unsubShopDoc) {
+        updateCloudStatusBadge('synced', `Cloud • ${activeShopId}`);
+        showToast('Cloud နှင့် အချိန်နှင့်တစ်ပြေးညီ ချိတ်ဆက်ထားပြီးဖြစ်ပါသည်');
+        return;
+      }
+      updateCloudStatusBadge('syncing', `Syncing (${activeShopId})...`);
+      try {
+        const snap = await fsApi.getDoc(getPackedShopDocRef(activeShopId));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.settings) shopSettings = { ...shopSettings, ...data.settings };
+          if (Array.isArray(data.products)) products = data.products;
+          if (Array.isArray(data.customers)) customers = data.customers;
+          if (Array.isArray(data.vouchers)) vouchers = data.vouchers;
+
+          safeLSSet(LS_KEYS.SETTINGS, shopSettings);
+          safeLSSet(LS_KEYS.PRODUCTS, products);
+          safeLSSet(LS_KEYS.CUSTOMERS, customers);
+          safeLSSet(LS_KEYS.VOUCHERS, vouchers);
+          refreshAllUI();
+        }
+        skipNextSnapshotEcho = true;
+        attachSingleDocListener(activeShopId);
+        updateCloudStatusBadge('synced', `Cloud • ${activeShopId}`);
+        showToast('ဒေတာများ ထပ်တူညှိပြီးပါပြီ');
+      } catch (err) {
+        updateCloudStatusBadge('offline', `Offline (${activeShopId})`);
+        showToast('Sync မအောင်မြင်ပါ', 'error');
+      }
+    }
+
+    function disconnectShopSession() {
+      if (unsubShopDoc) {
+        unsubShopDoc();
+        unsubShopDoc = null;
+      }
+      activeShopId = '';
+      activeShopPin = '';
+      localStorage.removeItem(LS_KEYS.SESSION);
+      updateCloudStatusBadge('local', 'Local Mode');
+      refreshAllUI();
+      showToast('Cloud ချိတ်ဆက်မှု ဖြုတ်လိုက်ပါပြီ');
+    }
+
+    function updateCloudStatusBadge(state, label) {
+      const dot = document.getElementById('cloud-status-dot');
+      const text = document.getElementById('cloud-status-text');
+      const setBadge = document.getElementById('settings-sync-badge');
+
+      const dotColors = {
+        synced: 'bg-emerald-500',
+        syncing: 'bg-amber-400 animate-ping',
+        offline: 'bg-rose-500',
+        local: 'bg-slate-400'
+      };
+      dot.className = `w-2 h-2 rounded-full ${dotColors[state] || 'bg-slate-400'}`;
+      text.textContent = label;
+      if (setBadge) setBadge.textContent = label;
+
+      const discView = document.getElementById('cloud-disconnected-view');
+      const connView = document.getElementById('cloud-connected-view');
+      if (activeShopId) {
+        discView.classList.add('hidden');
+        connView.classList.remove('hidden');
+        document.getElementById('connected-shop-id').textContent = activeShopId;
+      } else {
+        discView.classList.remove('hidden');
+        connView.classList.add('hidden');
+      }
+    }
+
+    // =========================================================================
+    // 5. CUSTOMER DIRECTORY (AUTO-SAVE, REUSE, PICKER & FILTERING)
+    // =========================================================================
+    function upsertCustomerFromVoucher(name, phone, address, orderDate) {
+      const cleanName = String(name || '').trim();
+      const cleanPhone = String(phone || '').trim();
+      const cleanAddress = String(address || '').trim();
+      if (!cleanName && !cleanPhone) return;
+
+      const existingIdx = customers.findIndex(c => {
+        if (cleanPhone && c.phone && c.phone.replace(/\s+/g, '') === cleanPhone.replace(/\s+/g, '')) return true;
+        if (!cleanPhone && cleanName && c.name.toLowerCase() === cleanName.toLowerCase()) return true;
+        return false;
+      });
+
+      if (existingIdx >= 0) {
+        const existing = customers[existingIdx];
+        if (cleanName) existing.name = cleanName;
+        if (cleanPhone) existing.phone = cleanPhone;
+        if (cleanAddress) existing.address = cleanAddress;
+        existing.lastOrderDate = orderDate || getTodayISO();
+        existing.updatedAt = new Date().toISOString();
+      } else {
+        customers.unshift({
+          id: generateId('cust'),
+          name: cleanName || cleanPhone,
+          phone: cleanPhone,
+          address: cleanAddress,
+          lastOrderDate: orderDate || getTodayISO(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
+
+    function rebuildCustomerDirectoryFromVouchers() {
+      const ordered = [...vouchers].reverse();
+      ordered.forEach(v => {
+        upsertCustomerFromVoucher(v.customerName, v.customerPhone, v.customerAddress, v.date);
+      });
+      safeLSSet(LS_KEYS.CUSTOMERS, customers);
+    }
+
+    function refreshCustomerDatalistsAndDropdowns() {
+      const countEl = document.getElementById('pos-saved-cust-count');
+      if (countEl) countEl.textContent = customers.length;
+
+      const nameListEl = document.getElementById('customer-name-datalist');
+      const phoneListEl = document.getElementById('customer-phone-datalist');
+      if (nameListEl) {
+        nameListEl.innerHTML = customers.map(c =>
+          `<option value="${escapeHTML(c.name)}">${escapeHTML(c.phone || '')}</option>`
+        ).join('');
+      }
+      if (phoneListEl) {
+        phoneListEl.innerHTML = customers.filter(c => c.phone).map(c =>
+          `<option value="${escapeHTML(c.phone)}">${escapeHTML(c.name)}</option>`
+        ).join('');
+      }
+
+      const recentWrap = document.getElementById('pos-recent-customers-wrap');
+      const recentList = document.getElementById('pos-recent-customers');
+      if (recentWrap && recentList) {
+        if (customers.length === 0) {
+          recentWrap.classList.add('hidden');
+        } else {
+          recentWrap.classList.remove('hidden');
+          recentList.innerHTML = customers.slice(0, 8).map(c => `
+            <button type="button" data-cid="${escapeHTML(c.id)}" onclick="selectCustomerForPos(this.dataset.cid)" class="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-brand-50 hover:text-brand-700 border border-slate-200/80 text-[11px] font-bold text-slate-700 shrink-0 transition flex items-center gap-1">
+              <span>${escapeHTML(c.name)}</span>
+              ${c.phone ? `<span class="text-[10px] font-mono text-slate-400">(${escapeHTML(c.phone)})</span>` : ''}
+            </button>
+          `).join('');
+        }
+      }
+
+      const customerOptions = ['<option value="">ဝယ်သူအားလုံး (All Customers)</option>']
+        .concat(customers.map(c => {
+          const key = getCustomerKey(c.name, c.phone);
+          const label = c.phone ? `${c.name} (${c.phone})` : c.name;
+          return `<option value="${escapeHTML(key)}">${escapeHTML(label)}</option>`;
+        })).join('');
+
+      const histCustSel = document.getElementById('hist-filter-customer');
+      if (histCustSel) {
+        const prev = histCustSel.value;
+        histCustSel.innerHTML = customerOptions;
+        histCustSel.value = prev;
+      }
+
+      const dashCustSel = document.getElementById('dash-filter-customer');
+      if (dashCustSel) {
+        dashCustSel.innerHTML = customerOptions;
+        dashCustSel.value = dashCrossFilter.customerKey || '';
+      }
+    }
+
+    function handleCustomerInputMatch(field) {
+      const nameInput = document.getElementById('pos-customer-name');
+      const phoneInput = document.getElementById('pos-customer-phone');
+      const addrInput = document.getElementById('pos-customer-address');
+
+      if (field === 'name') {
+        const val = nameInput.value.trim().toLowerCase();
+        if (!val) return;
+        const found = customers.find(c => c.name.toLowerCase() === val);
+        if (found) {
+          if (found.phone && !phoneInput.value) phoneInput.value = found.phone;
+          if (found.address && !addrInput.value) addrInput.value = found.address;
+        }
+      } else if (field === 'phone') {
+        const val = phoneInput.value.trim().replace(/\s+/g, '');
+        if (!val) return;
+        const found = customers.find(c => (c.phone || '').replace(/\s+/g, '') === val);
+        if (found) {
+          if (found.name && !nameInput.value) nameInput.value = found.name;
+          if (found.address && !addrInput.value) addrInput.value = found.address;
+        }
+      }
+    }
+
+    function selectCustomerForPos(custId) {
+      const cust = customers.find(c => c.id === custId);
+      if (!cust) return;
+      document.getElementById('pos-customer-name').value = cust.name || '';
+      document.getElementById('pos-customer-phone').value = cust.phone || '';
+      document.getElementById('pos-customer-address').value = cust.address || '';
+      closeCustomerPickerModal();
+      showToast(`ဝယ်သူ "${cust.name}" ထည့်သွင်းပြီးပါပြီ`);
+    }
+
+    function clearPosCustomerFields() {
+      document.getElementById('pos-customer-name').value = '';
+      document.getElementById('pos-customer-phone').value = '';
+      document.getElementById('pos-customer-address').value = '';
+    }
+
+    function openCustomerPickerModal() {
+      document.getElementById('picker-cust-search').value = '';
+      renderCustomerPickerList();
+      document.getElementById('customer-picker-modal').classList.remove('hidden');
+    }
+
+    function closeCustomerPickerModal() {
+      document.getElementById('customer-picker-modal').classList.add('hidden');
+    }
+
+    function renderCustomerPickerList() {
+      const q = document.getElementById('picker-cust-search').value.trim().toLowerCase();
+      const listEl = document.getElementById('picker-cust-list');
+      const filtered = customers.filter(c =>
+        !q ||
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.toLowerCase().includes(q)) ||
+        (c.address && c.address.toLowerCase().includes(q))
+      );
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div class="py-8 text-center text-xs text-slate-400">သိမ်းဆည်းထားသော ဝယ်သူ မရှိသေးပါ</div>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(c => {
+        const key = getCustomerKey(c.name, c.phone);
+        const custVouchers = vouchers.filter(v => getCustomerKey(v.customerName, v.customerPhone) === key);
+        const totalSpent = custVouchers.reduce((sum, v) => sum + (Number(v.grandTotal) || 0), 0);
+        return `
+          <button type="button" data-cid="${escapeHTML(c.id)}" onclick="selectCustomerForPos(this.dataset.cid)" class="w-full p-3 rounded-2xl bg-slate-50 hover:bg-brand-50 border border-slate-200/80 text-left flex items-center justify-between gap-2 transition">
+            <div class="min-w-0">
+              <p class="text-xs sm:text-sm font-extrabold text-slate-900 truncate">${escapeHTML(c.name)}</p>
+              <p class="text-[11px] text-slate-500 truncate">${escapeHTML(c.phone || '-')} ${c.address ? '• ' + escapeHTML(c.address) : ''}</p>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-xs font-mono font-extrabold text-brand-700">${formatMMK(totalSpent)}</p>
+              <p class="text-[10px] text-slate-400">${custVouchers.length} ကြိမ်</p>
+            </div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function saveCustomerDirectoryItem() {
+      const id = document.getElementById('edit-customer-id').value;
+      const name = document.getElementById('cust-name-input').value.trim();
+      const phone = document.getElementById('cust-phone-input').value.trim();
+      const address = document.getElementById('cust-address-input').value.trim();
+
+      if (!name && !phone) {
+        showToast('ဝယ်သူအမည် သို့မဟုတ် ဖုန်းနံပါတ် ထည့်ပါ', 'error');
+        return;
+      }
+
+      if (id) {
+        const idx = customers.findIndex(c => c.id === id);
+        if (idx >= 0) {
+          customers[idx] = { ...customers[idx], name: name || phone, phone, address, updatedAt: new Date().toISOString() };
+        }
+        showToast('ဝယ်သူအချက်အလက် ပြင်ဆင်ပြီးပါပြီ');
+      } else {
+        upsertCustomerFromVoucher(name, phone, address, getTodayISO());
+        showToast('ဝယ်သူအသစ် သိမ်းဆည်းပြီးပါပြီ');
+      }
+
+      document.getElementById('edit-customer-id').value = '';
+      document.getElementById('cust-name-input').value = '';
+      document.getElementById('cust-phone-input').value = '';
+      document.getElementById('cust-address-input').value = '';
+      document.getElementById('cust-save-btn').textContent = 'သိမ်းမည်';
+
+      persistAllState();
+      refreshCustomerDatalistsAndDropdowns();
+      renderSettingsCustomerList();
+    }
+
+    function editCustomerDirectoryItem(id) {
+      const c = customers.find(item => item.id === id);
+      if (!c) return;
+      document.getElementById('edit-customer-id').value = c.id;
+      document.getElementById('cust-name-input').value = c.name || '';
+      document.getElementById('cust-phone-input').value = c.phone || '';
+      document.getElementById('cust-address-input').value = c.address || '';
+      document.getElementById('cust-save-btn').textContent = 'ပြင်မည်';
+    }
+
+    function deleteCustomerDirectoryItem(id) {
+      openConfirmModal('ဤဝယ်သူအချက်အလက်ကို ဖျက်မှာ သေချာပါသလား?', () => {
+        customers = customers.filter(c => c.id !== id);
+        persistAllState();
+        refreshCustomerDatalistsAndDropdowns();
+        renderSettingsCustomerList();
+        showToast('ဝယ်သူစာရင်းမှ ဖျက်ပြီးပါပြီ');
+      });
+    }
+
+    function renderSettingsCustomerList() {
+      const countEl = document.getElementById('settings-cust-count');
+      const listEl = document.getElementById('settings-customer-list');
+      const q = (document.getElementById('settings-cust-search')?.value || '').trim().toLowerCase();
+      if (countEl) countEl.textContent = customers.length;
+
+      const filtered = customers.filter(c =>
+        !q ||
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.toLowerCase().includes(q))
+      );
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">ဝယ်သူစာရင်း မရှိသေးပါ</p>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(c => `
+        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(c.name)}</p>
+            <p class="text-[11px] text-slate-500 truncate">${escapeHTML(c.phone || '-')} ${c.address ? '• ' + escapeHTML(c.address) : ''}</p>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button type="button" data-cid="${escapeHTML(c.id)}" onclick="editCustomerDirectoryItem(this.dataset.cid)" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold">ပြင်</button>
+            <button type="button" data-cid="${escapeHTML(c.id)}" onclick="deleteCustomerDirectoryItem(this.dataset.cid)" class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-bold">ဖျက်</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // =========================================================================
+    // 6. TAB NAVIGATION & THEME SYSTEM
+    // =========================================================================
+    function switchTab(tabName) {
+      const tabs = ['pos', 'history', 'dashboard', 'settings'];
+      tabs.forEach(t => {
+        const sec = document.getElementById(`tab-${t}`);
+        const btn = document.getElementById(`nav-btn-${t}`);
+        if (t === tabName) {
+          sec.classList.remove('hidden');
+          btn.className = 'py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 bg-brand-600 text-white shadow-sm transition';
+        } else {
+          sec.classList.add('hidden');
+          btn.className = 'py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 text-slate-600 hover:text-slate-900 transition';
+        }
+      });
+
+      if (tabName === 'history') renderHistoryList();
+      if (tabName === 'dashboard') renderDashboard();
+      if (tabName === 'settings') {
+        renderSettingsProductList();
+        renderSettingsCustomerList();
+      }
+    }
+
+    function applyThemePalette(colorKey) {
+      const p = THEME_PALETTES[colorKey] || THEME_PALETTES.blue;
+      const root = document.documentElement;
+      root.style.setProperty('--brand-50', p[50]);
+      root.style.setProperty('--brand-100', p[100]);
+      root.style.setProperty('--brand-500', p[500]);
+      root.style.setProperty('--brand-600', p[600]);
+      root.style.setProperty('--brand-700', p[700]);
+      root.style.setProperty('--brand-900', p[900]);
+    }
+
+    function setThemeColor(colorKey) {
+      shopSettings.themeColor = colorKey;
+      applyThemePalette(colorKey);
+      showToast('အရောင် ပြောင်းလဲပြီးပါပြီ');
+    }
+
+    // =========================================================================
+    // 7. POS CART, CALCULATIONS & VOUCHER SAVE / EDIT
+    // =========================================================================
+    function renderPosQuickProducts() {
+      const card = document.getElementById('pos-quick-products-card');
+      const list = document.getElementById('pos-quick-products-list');
+      const q = (document.getElementById('pos-product-search')?.value || '').trim().toLowerCase();
+
+      if (products.length === 0) {
+        card.classList.add('hidden');
+        return;
+      }
+      card.classList.remove('hidden');
+
+      const filtered = products.filter(p => !q || p.name.toLowerCase().includes(q));
+      list.innerHTML = filtered.map(p => `
+        <button type="button" data-pid="${escapeHTML(p.id)}" onclick="addCatalogProductToCart(this.dataset.pid)" class="p-2 rounded-xl bg-slate-50 hover:bg-brand-50 border border-slate-200/80 hover:border-brand-400 text-left transition active:scale-95">
+          <p class="text-xs font-bold text-slate-900 truncate">${escapeHTML(p.name)}</p>
+          <p class="text-[11px] font-mono font-extrabold text-brand-700 mt-0.5">${formatMMK(p.price)}${p.unit ? ` <span class="font-sans font-semibold text-slate-500">/ ${escapeHTML(p.unit)}</span>` : ''}</p>
+        </button>
+      `).join('');
+    }
+
+    function addCatalogProductToCart(prodId) {
+      const prod = products.find(p => p.id === prodId);
+      if (!prod) return;
+      const prodUnit = (prod.unit || '').trim();
+      const existing = posCart.find(item =>
+        item.name === prod.name &&
+        (item.unit || '') === prodUnit &&
+        Number(item.price) === Number(prod.price) &&
+        !(Number(item.discount) > 0)
+      );
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        posCart.push({
+          id: generateId('row'),
+          name: prod.name,
+          unit: prodUnit,
+          qty: 1,
+          price: Number(prod.price) || 0,
+          discount: 0,
+          discountType: 'amount'
+        });
+      }
+      renderPosCart();
+    }
+
+    function addManualCartRow() {
+      posCart.push({
+        id: generateId('row'),
+        name: '',
+        unit: '',
+        qty: 1,
+        price: 0,
+        discount: 0,
+        discountType: 'amount'
+      });
+      renderPosCart();
+    }
+
+    function updateCartRowField(rowId, field, value) {
+      const row = posCart.find(r => r.id === rowId);
+      if (!row) return;
+      if (field === 'name') row.name = value;
+      if (field === 'unit') row.unit = value;
+      if (field === 'qty') row.qty = Math.max(1, parseInt(value, 10) || 1);
+      if (field === 'price') row.price = Math.max(0, Number(value) || 0);
+      if (field === 'discount') row.discount = Math.max(0, Number(value) || 0);
+      if (field === 'discountType') row.discountType = value === 'percent' ? 'percent' : 'amount';
+      renderPosCart();
+    }
+
+    function calculateItemLineTotals(item) {
+      const qty = Math.max(0, Number(item.qty) || 0);
+      const price = Math.max(0, Number(item.price) || 0);
+      const gross = qty * price;
+      const rawDisc = Math.max(0, Number(item.discount) || 0);
+      const discType = item.discountType === 'percent' ? 'percent' : 'amount';
+      const discountAmount = discType === 'percent'
+        ? Math.round((gross * Math.min(100, rawDisc)) / 100)
+        : Math.min(gross, rawDisc);
+      const netTotal = Math.max(0, gross - discountAmount);
+      return { qty, price, gross, rawDisc, discType, discountAmount, netTotal };
+    }
+
+    function stepCartQty(rowId, delta) {
+      const row = posCart.find(r => r.id === rowId);
+      if (!row) return;
+      const next = row.qty + delta;
+      if (next <= 0) {
+        posCart = posCart.filter(r => r.id !== rowId);
+      } else {
+        row.qty = next;
+      }
+      renderPosCart();
+    }
+
+    function removeCartRow(rowId) {
+      posCart = posCart.filter(r => r.id !== rowId);
+      renderPosCart();
+    }
+
+    function renderPosCart() {
+      const container = document.getElementById('pos-cart-list');
+      document.getElementById('pos-item-count').textContent = posCart.length;
+
+      if (posCart.length === 0) {
+        container.innerHTML = `<div class="py-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">ပစ္စည်းစာရင်း မရှိသေးပါ — "+ ပစ္စည်းထည့်မည်" ကို နှိပ်ပါ</div>`;
+        recalculatePosTotals();
+        return;
+      }
+
+      container.innerHTML = posCart.map((row, idx) => {
+        const calc = calculateItemLineTotals(row);
+        return `
+          <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+            <div class="flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded-lg bg-slate-200 text-slate-700 text-[11px] font-mono font-extrabold flex items-center justify-center shrink-0">${idx + 1}</span>
+              <input type="text" value="${escapeHTML(row.name)}" data-rid="${escapeHTML(row.id)}" onchange="updateCartRowField(this.dataset.rid, 'name', this.value)" placeholder="ပစ္စည်းအမည်" class="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs sm:text-sm font-bold focus:outline-none focus:border-brand-600" />
+              <input type="text" list="unit-datalist" value="${escapeHTML(row.unit || '')}" data-rid="${escapeHTML(row.id)}" onchange="updateCartRowField(this.dataset.rid, 'unit', this.value)" placeholder="ယူနစ်" class="w-20 sm:w-24 px-2 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-center focus:outline-none focus:border-brand-600 shrink-0" />
+              <button type="button" data-rid="${escapeHTML(row.id)}" onclick="removeCartRow(this.dataset.rid)" class="p-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 pl-6">
+              <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-0.5">
+                <button type="button" data-rid="${escapeHTML(row.id)}" onclick="stepCartQty(this.dataset.rid, -1)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 font-extrabold text-slate-700">-</button>
+                <input type="number" min="1" value="${row.qty}" data-rid="${escapeHTML(row.id)}" onchange="updateCartRowField(this.dataset.rid, 'qty', this.value)" class="w-10 text-center text-xs font-mono font-extrabold focus:outline-none" />
+                <button type="button" data-rid="${escapeHTML(row.id)}" onclick="stepCartQty(this.dataset.rid, 1)" class="w-7 h-7 rounded-lg bg-brand-50 hover:bg-brand-100 font-extrabold text-brand-700">+</button>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <span class="text-[11px] text-slate-400">×</span>
+                <input type="number" min="0" value="${row.price}" data-rid="${escapeHTML(row.id)}" onchange="updateCartRowField(this.dataset.rid, 'price', this.value)" placeholder="ဈေးနှုန်း" class="w-24 sm:w-28 px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-right text-xs sm:text-sm font-mono font-bold focus:outline-none focus:border-brand-600" />
+              </div>
+
+              <div class="text-right min-w-[74px]">
+                ${calc.discountAmount > 0 ? `<div class="text-[10px] font-mono text-slate-400 line-through leading-none">${formatNumberOnly(calc.gross)}</div>` : ''}
+                <span class="text-xs sm:text-sm font-mono font-extrabold text-slate-900">${formatNumberOnly(calc.netTotal)}</span>
+              </div>
+            </div>
+
+            <!-- Per-Item Discount Row -->
+            <div class="flex items-center justify-between gap-2 pl-6 pt-0.5">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[11px] font-semibold text-slate-500">Item Disc:</span>
+                <div class="flex items-center rounded-xl overflow-hidden border border-slate-200 bg-white">
+                  <input type="number" min="0" value="${row.discount || ''}" placeholder="0" data-rid="${escapeHTML(row.id)}" onchange="updateCartRowField(this.dataset.rid, 'discount', this.value)" class="w-16 sm:w-20 px-2 py-1 bg-transparent text-right text-xs font-mono font-bold text-rose-600 focus:outline-none" />
+                  <select data-rid="${escapeHTML(row.id)}" onchange="updateCartRowField(this.dataset.rid, 'discountType', this.value)" class="px-1.5 py-1 bg-slate-100 text-[11px] font-bold text-slate-700 focus:outline-none">
+                    <option value="amount" ${row.discountType !== 'percent' ? 'selected' : ''}>Ks</option>
+                    <option value="percent" ${row.discountType === 'percent' ? 'selected' : ''}>%</option>
+                  </select>
+                </div>
+              </div>
+              <div class="text-right">
+                ${calc.discountAmount > 0
+                  ? `<span class="text-[11px] font-mono font-bold text-rose-600">- ${formatNumberOnly(calc.discountAmount)} Ks</span>`
+                  : `<span class="text-[10px] text-slate-400">လျှော့ဈေးမရှိ</span>`
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      recalculatePosTotals();
+    }
+
+    function calculatePosNumbers() {
+      let itemDiscountTotal = 0;
+      const subtotal = posCart.reduce((sum, r) => {
+        const line = calculateItemLineTotals(r);
+        itemDiscountTotal += line.discountAmount;
+        return sum + line.netTotal;
+      }, 0);
+      const rawDisc = Math.max(0, Number(document.getElementById('pos-discount').value) || 0);
+      const discType = document.getElementById('pos-discount-type').value;
+      const discountAmount = discType === 'percent' ? Math.round((subtotal * Math.min(100, rawDisc)) / 100) : rawDisc;
+      const delivery = Math.max(0, Number(document.getElementById('pos-delivery').value) || 0);
+      const grandTotal = Math.max(0, subtotal - discountAmount + delivery);
+
+      const paidInputRaw = document.getElementById('pos-paid-amount').value.trim();
+      const paidAmount = paidInputRaw === '' ? grandTotal : Math.max(0, Number(paidInputRaw) || 0);
+      const balance = grandTotal - paidAmount;
+
+      return { itemDiscountTotal, subtotal, rawDisc, discType, discountAmount, delivery, grandTotal, paidAmount, balance };
+    }
+
+    function recalculatePosTotals() {
+      const calc = calculatePosNumbers();
+      const itemDiscRow = document.getElementById('pos-item-discount-row');
+      if (calc.itemDiscountTotal > 0) {
+        itemDiscRow.classList.remove('hidden');
+        document.getElementById('pos-item-discount-display').textContent = `- ${formatMMK(calc.itemDiscountTotal)}`;
+      } else {
+        itemDiscRow.classList.add('hidden');
+      }
+      document.getElementById('pos-subtotal-display').textContent = formatMMK(calc.subtotal);
+      document.getElementById('pos-discount-display').textContent = `- ${formatMMK(calc.discountAmount)}`;
+      document.getElementById('pos-delivery-display').textContent = `+ ${formatMMK(calc.delivery)}`;
+      document.getElementById('pos-grandtotal-display').textContent = formatMMK(calc.grandTotal);
+
+      const balLabel = document.getElementById('pos-balance-label');
+      const balDisplay = document.getElementById('pos-balance-display');
+      if (calc.balance > 0) {
+        balLabel.textContent = 'ရရန်ကျန်ငွေ (Balance Due)';
+        balDisplay.textContent = formatMMK(calc.balance);
+        balDisplay.className = 'text-sm font-mono font-extrabold text-rose-400';
+      } else if (calc.balance < 0) {
+        balLabel.textContent = 'ပြန်အမ်းငွေ (Change)';
+        balDisplay.textContent = formatMMK(Math.abs(calc.balance));
+        balDisplay.className = 'text-sm font-mono font-extrabold text-sky-400';
+      } else {
+        balLabel.textContent = 'ငွေချေပြီး (Paid Full)';
+        balDisplay.textContent = '0 Ks';
+        balDisplay.className = 'text-sm font-mono font-extrabold text-emerald-400';
+      }
+    }
+
+    function saveCurrentVoucher() {
+      const validItems = posCart.filter(r => r.name.trim() !== '' && r.qty > 0);
+      if (validItems.length === 0) {
+        showToast('အနည်းဆုံး ပစ္စည်း (၁) မျိုး ထည့်သွင်းပါ', 'error');
+        return;
+      }
+
+      const customerName = document.getElementById('pos-customer-name').value.trim();
+      const customerPhone = document.getElementById('pos-customer-phone').value.trim();
+      const customerAddress = document.getElementById('pos-customer-address').value.trim();
+      const date = document.getElementById('pos-date').value || getTodayISO();
+      const paymentMethod = document.getElementById('pos-payment-method').value;
+      const calc = calculatePosNumbers();
+
+      upsertCustomerFromVoucher(customerName, customerPhone, customerAddress, date);
+
+      const serializedItems = validItems.map(i => {
+        const line = calculateItemLineTotals(i);
+        return {
+          name: i.name.trim(),
+          unit: (i.unit || '').trim(),
+          qty: line.qty,
+          price: line.price,
+          discount: line.rawDisc,
+          discountType: line.discType,
+          discountAmount: line.discountAmount,
+          lineTotal: line.netTotal
+        };
+      });
+
+      let savedVoucher = null;
+
+      if (editingVoucherId) {
+        const idx = vouchers.findIndex(v => v.id === editingVoucherId);
+        if (idx >= 0) {
+          savedVoucher = {
+            ...vouchers[idx],
+            customerName: customerName || 'Walk-in Customer',
+            customerPhone,
+            customerAddress,
+            date,
+            paymentMethod,
+            items: serializedItems,
+            itemDiscountTotal: calc.itemDiscountTotal,
+            subtotal: calc.subtotal,
+            discountRaw: calc.rawDisc,
+            discountType: calc.discType,
+            discountAmount: calc.discountAmount,
+            delivery: calc.delivery,
+            grandTotal: calc.grandTotal,
+            paidAmount: calc.paidAmount,
+            balanceDue: Math.max(0, calc.balance),
+            updatedAt: new Date().toISOString()
+          };
+          vouchers[idx] = savedVoucher;
+        }
+        showToast('ဘောက်ချာ ပြင်ဆင်သိမ်းဆည်းပြီးပါပြီ');
+      } else {
+        savedVoucher = {
+          id: generateId('inv'),
+          voucherNo: generateVoucherNumber(),
+          customerName: customerName || 'Walk-in Customer',
+          customerPhone,
+          customerAddress,
+          date,
+          paymentMethod,
+          items: serializedItems,
+          itemDiscountTotal: calc.itemDiscountTotal,
+          subtotal: calc.subtotal,
+          discountRaw: calc.rawDisc,
+          discountType: calc.discType,
+          discountAmount: calc.discountAmount,
+          delivery: calc.delivery,
+          grandTotal: calc.grandTotal,
+          paidAmount: calc.paidAmount,
+          balanceDue: Math.max(0, calc.balance),
+          createdAt: new Date().toISOString()
+        };
+        vouchers.unshift(savedVoucher);
+        showToast('ဘောက်ချာအသစ် သိမ်းဆည်းပြီးပါပြီ');
+      }
+
+      persistAllState();
+      refreshCustomerDatalistsAndDropdowns();
+      resetPosForm();
+
+      if (savedVoucher) {
+        openVoucherPreview(savedVoucher.id);
+      }
+    }
+
+    function startEditVoucher(voucherId) {
+      const v = vouchers.find(item => item.id === voucherId);
+      if (!v) return;
+
+      editingVoucherId = v.id;
+      document.getElementById('edit-mode-banner').classList.remove('hidden');
+      document.getElementById('edit-voucher-no').textContent = v.voucherNo;
+      document.getElementById('pos-save-btn-text').textContent = 'ပြင်ဆင်မှု သိမ်းမည်';
+
+      document.getElementById('pos-customer-name').value = v.customerName === 'Walk-in Customer' ? '' : (v.customerName || '');
+      document.getElementById('pos-customer-phone').value = v.customerPhone || '';
+      document.getElementById('pos-customer-address').value = v.customerAddress || '';
+      document.getElementById('pos-date').value = v.date || getTodayISO();
+      document.getElementById('pos-payment-method').value = v.paymentMethod || 'Cash';
+      document.getElementById('pos-discount').value = v.discountRaw || 0;
+      document.getElementById('pos-discount-type').value = v.discountType || 'amount';
+      document.getElementById('pos-delivery').value = v.delivery || 0;
+      document.getElementById('pos-paid-amount').value = v.paidAmount != null ? v.paidAmount : '';
+
+      posCart = (v.items || []).map(item => ({
+        id: generateId('row'),
+        name: item.name,
+        unit: item.unit || '',
+        qty: Number(item.qty) || 1,
+        price: Number(item.price) || 0,
+        discount: Number(item.discount) || 0,
+        discountType: item.discountType === 'percent' ? 'percent' : 'amount'
+      }));
+
+      switchTab('pos');
+      renderPosCart();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEditVoucher() {
+      resetPosForm();
+      showToast('ဘောက်ချာပြင်ဆင်ခြင်း ပယ်ဖျက်လိုက်ပါပြီ', 'warning');
+    }
+
+    function resetPosForm() {
+      editingVoucherId = null;
+      document.getElementById('edit-mode-banner').classList.add('hidden');
+      document.getElementById('pos-save-btn-text').textContent = 'ဘောက်ချာ သိမ်းပြီး ထုတ်မည်';
+
+      clearPosCustomerFields();
+      document.getElementById('pos-date').value = getTodayISO();
+      document.getElementById('pos-discount').value = 0;
+      document.getElementById('pos-discount-type').value = 'amount';
+      document.getElementById('pos-delivery').value = 0;
+      document.getElementById('pos-paid-amount').value = '';
+      document.getElementById('pos-payment-method').value = 'Cash';
+
+      posCart = [{ id: generateId('row'), name: '', unit: '', qty: 1, price: 0, discount: 0, discountType: 'amount' }];
+      renderPosCart();
+    }
+
+    // =========================================================================
+    // 8. HISTORY LIST (DAY / MONTH / YEAR / CUSTOMER FILTERING)
+    // =========================================================================
+    function setHistoryPeriodMode(mode) {
+      historyPeriodMode = mode;
+      ['day', 'month', 'year', 'all'].forEach(m => {
+        const btn = document.getElementById(`hist-mode-${m}`);
+        btn.className = m === mode
+          ? 'py-1.5 rounded-lg text-xs font-bold transition bg-white text-brand-700 shadow-sm'
+          : 'py-1.5 rounded-lg text-xs font-bold transition text-slate-600';
+      });
+
+      const wrap = document.getElementById('hist-date-input-wrap');
+      if (mode === 'day') {
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = `<input type="date" id="hist-filter-date" value="${getTodayISO()}" onchange="renderHistoryList()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold focus:outline-none focus:border-brand-600" />`;
+      } else if (mode === 'month') {
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = `<input type="month" id="hist-filter-date" value="${getCurrentMonthISO()}" onchange="renderHistoryList()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold focus:outline-none focus:border-brand-600" />`;
+      } else if (mode === 'year') {
+        wrap.classList.remove('hidden');
+        const curY = Number(getCurrentYearISO());
+        let opts = '';
+        for (let y = curY; y >= curY - 5; y--) {
+          opts += `<option value="${y}">${y} ခုနှစ်</option>`;
+        }
+        wrap.innerHTML = `<select id="hist-filter-date" onchange="renderHistoryList()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold focus:outline-none focus:border-brand-600">${opts}</select>`;
+      } else {
+        wrap.classList.add('hidden');
+      }
+      renderHistoryList();
+    }
+
+    function getFilteredHistoryVouchers() {
+      const dateVal = document.getElementById('hist-filter-date')?.value || '';
+      const custKey = document.getElementById('hist-filter-customer')?.value || '';
+      const q = (document.getElementById('hist-search-input')?.value || '').trim().toLowerCase();
+
+      return vouchers.filter(v => {
+        if (historyPeriodMode === 'day' && dateVal && v.date !== dateVal) return false;
+        if (historyPeriodMode === 'month' && dateVal && !String(v.date || '').startsWith(dateVal)) return false;
+        if (historyPeriodMode === 'year' && dateVal && !String(v.date || '').startsWith(dateVal)) return false;
+
+        if (custKey && getCustomerKey(v.customerName, v.customerPhone) !== custKey) return false;
+
+        if (q) {
+          const inNo = (v.voucherNo || '').toLowerCase().includes(q);
+          const inName = (v.customerName || '').toLowerCase().includes(q);
+          const inPhone = (v.customerPhone || '').toLowerCase().includes(q);
+          const inItems = (v.items || []).some(i => (i.name || '').toLowerCase().includes(q));
+          if (!inNo && !inName && !inPhone && !inItems) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderHistoryList() {
+      document.getElementById('hist-total-badge').textContent = vouchers.length;
+      const list = getFilteredHistoryVouchers();
+      const totalSum = list.reduce((s, v) => s + (Number(v.grandTotal) || 0), 0);
+
+      document.getElementById('hist-filtered-count').textContent = list.length;
+      document.getElementById('hist-filtered-total').textContent = formatMMK(totalSum);
+
+      const container = document.getElementById('history-voucher-list');
+      if (list.length === 0) {
+        container.innerHTML = `<div class="bg-white rounded-2xl p-8 text-center text-xs text-slate-400 border border-slate-200/70">ရွေးချယ်ထားသော အချက်အလက်အတွက် ဘောက်ချာမှတ်တမ်း မရှိပါ</div>`;
+        return;
+      }
+
+      container.innerHTML = list.map(v => {
+        const due = Number(v.balanceDue) || 0;
+        const itemSummary = (v.items || []).map(i => {
+          const line = calculateItemLineTotals(i);
+          const discTag = line.discountAmount > 0 ? ` -Disc ${formatNumberOnly(line.discountAmount)}` : '';
+          return `${i.name} (${i.qty}${i.unit ? ' ' + i.unit : ''}${discTag})`;
+        }).join(', ');
+        return `
+          <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 space-y-2.5">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-xs font-mono font-extrabold text-brand-700">${escapeHTML(v.voucherNo)}</span>
+                  <span class="text-[11px] font-mono text-slate-400">• ${escapeHTML(v.date)}</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${due > 0 ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}">
+                    ${due > 0 ? 'ကျန်: ' + formatNumberOnly(due) : 'ငွေချေပြီး'}
+                  </span>
+                </div>
+                <p class="text-sm font-extrabold text-slate-900 mt-0.5 truncate">
+                  ${escapeHTML(v.customerName || 'Walk-in Customer')}
+                  ${v.customerPhone ? `<span class="text-xs font-mono font-normal text-slate-500 ml-1">${escapeHTML(v.customerPhone)}</span>` : ''}
+                </p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="text-sm sm:text-base font-mono font-extrabold text-slate-900">${formatMMK(v.grandTotal)}</p>
+                <p class="text-[10px] font-semibold text-slate-400">${escapeHTML(v.paymentMethod || 'Cash')}</p>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-xl truncate">${escapeHTML(itemSummary)}</p>
+
+            <div class="grid grid-cols-3 gap-2 pt-0.5">
+              <button type="button" data-vid="${escapeHTML(v.id)}" onclick="openVoucherPreview(this.dataset.vid)" class="py-2 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-extrabold transition">
+                e-Voucher / Print
+              </button>
+              <button type="button" data-vid="${escapeHTML(v.id)}" onclick="startEditVoucher(this.dataset.vid)" class="py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-extrabold transition">
+                ပြင်မည်
+              </button>
+              <button type="button" data-vid="${escapeHTML(v.id)}" onclick="deleteVoucherItem(this.dataset.vid)" class="py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-extrabold transition">
+                ဖျက်မည်
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function deleteVoucherItem(voucherId) {
+      openConfirmModal('ဤဘောက်ချာကို ဖျက်မှာ သေချာပါသလား?', () => {
+        vouchers = vouchers.filter(v => v.id !== voucherId);
+        persistAllState();
+        renderHistoryList();
+        renderDashboard();
+        showToast('ဘောက်ချာ ဖျက်ပြီးပါပြီ');
+      });
+    }
+
+    // =========================================================================
+    // 9. INTERACTIVE POWER BI STYLE DASHBOARD & ANALYTICS
+    // =========================================================================
+    function setDashPeriodMode(mode) {
+      dashPeriodMode = mode;
+      ['day', 'month', 'year', 'all'].forEach(m => {
+        const btn = document.getElementById(`dash-mode-${m}`);
+        btn.className = m === mode
+          ? 'py-1.5 rounded-lg text-xs font-bold transition bg-white text-brand-700 shadow-sm'
+          : 'py-1.5 rounded-lg text-xs font-bold transition text-slate-600';
+      });
+
+      const wrap = document.getElementById('dash-date-input-wrap');
+      if (mode === 'day') {
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = `<input type="date" id="dash-filter-date" value="${getTodayISO()}" onchange="renderDashboard()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold focus:outline-none focus:border-brand-600" />`;
+      } else if (mode === 'month') {
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = `<input type="month" id="dash-filter-date" value="${getCurrentMonthISO()}" onchange="renderDashboard()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold focus:outline-none focus:border-brand-600" />`;
+      } else if (mode === 'year') {
+        wrap.classList.remove('hidden');
+        const curY = Number(getCurrentYearISO());
+        let opts = '';
+        for (let y = curY; y >= curY - 5; y--) {
+          opts += `<option value="${y}">${y} ခုနှစ်</option>`;
+        }
+        wrap.innerHTML = `<select id="dash-filter-date" onchange="renderDashboard()" class="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-semibold focus:outline-none focus:border-brand-600">${opts}</select>`;
+      } else {
+        wrap.classList.add('hidden');
+      }
+
+      dashCrossFilter.date = '';
+      renderDashboard();
+    }
+
+    function getBasePeriodDashboardVouchers() {
+      const dateVal = document.getElementById('dash-filter-date')?.value || '';
+      return vouchers.filter(v => {
+        if (dashPeriodMode === 'day' && dateVal && v.date !== dateVal) return false;
+        if (dashPeriodMode === 'month' && dateVal && !String(v.date || '').startsWith(dateVal)) return false;
+        if (dashPeriodMode === 'year' && dateVal && !String(v.date || '').startsWith(dateVal)) return false;
+        return true;
+      });
+    }
+
+    function getCrossFilteredDashboardVouchers() {
+      return getBasePeriodDashboardVouchers().filter(v => {
+        if (dashCrossFilter.date && v.date !== dashCrossFilter.date) return false;
+        if (dashCrossFilter.paymentMethod && (v.paymentMethod || 'Cash') !== dashCrossFilter.paymentMethod) return false;
+        if (dashCrossFilter.productName && !(v.items || []).some(i => i.name === dashCrossFilter.productName)) return false;
+        if (dashCrossFilter.customerKey && getCustomerKey(v.customerName, v.customerPhone) !== dashCrossFilter.customerKey) return false;
+        if (dashCrossFilter.status === 'paid' && (Number(v.balanceDue) || 0) > 0) return false;
+        if (dashCrossFilter.status === 'due' && (Number(v.balanceDue) || 0) <= 0) return false;
+        return true;
+      });
+    }
+
+    function onDashCustomerDropdownChange(val) {
+      dashCrossFilter.customerKey = val || '';
+      renderDashboard();
+    }
+
+    function toggleDashStatusFilter(status) {
+      dashCrossFilter.status = (dashCrossFilter.status === status && status !== 'all') ? 'all' : status;
+      renderDashboard();
+    }
+
+    function toggleDashDateFilter(dateStr) {
+      dashCrossFilter.date = dashCrossFilter.date === dateStr ? '' : dateStr;
+      renderDashboard();
+    }
+
+    function toggleDashPaymentFilter(method) {
+      dashCrossFilter.paymentMethod = dashCrossFilter.paymentMethod === method ? '' : method;
+      renderDashboard();
+    }
+
+    function toggleDashProductFilter(prodName) {
+      dashCrossFilter.productName = dashCrossFilter.productName === prodName ? '' : prodName;
+      renderDashboard();
+    }
+
+    function toggleDashCustomerFilter(custKey) {
+      dashCrossFilter.customerKey = dashCrossFilter.customerKey === custKey ? '' : custKey;
+      const sel = document.getElementById('dash-filter-customer');
+      if (sel) sel.value = dashCrossFilter.customerKey;
+      renderDashboard();
+    }
+
+    function clearAllDashCrossFilters() {
+      dashCrossFilter = { date: '', paymentMethod: '', productName: '', customerKey: '', status: 'all' };
+      const sel = document.getElementById('dash-filter-customer');
+      if (sel) sel.value = '';
+      renderDashboard();
+    }
+
+    function renderDashActiveFilterChips() {
+      const wrap = document.getElementById('dash-active-filters');
+      const chips = [];
+
+      if (dashCrossFilter.date) {
+        chips.push(`<button type="button" onclick="toggleDashDateFilter('')" class="px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 text-[11px] font-bold">ရက်စွဲ: ${escapeHTML(dashCrossFilter.date)} ×</button>`);
+      }
+      if (dashCrossFilter.paymentMethod) {
+        chips.push(`<button type="button" onclick="toggleDashPaymentFilter('')" class="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-bold">ငွေချေစနစ်: ${escapeHTML(dashCrossFilter.paymentMethod)} ×</button>`);
+      }
+      if (dashCrossFilter.productName) {
+        chips.push(`<button type="button" onclick="toggleDashProductFilter('')" class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">ပစ္စည်း: ${escapeHTML(dashCrossFilter.productName)} ×</button>`);
+      }
+      if (dashCrossFilter.customerKey) {
+        const cObj = customers.find(c => getCustomerKey(c.name, c.phone) === dashCrossFilter.customerKey);
+        const label = cObj ? cObj.name : dashCrossFilter.customerKey.replace(/^(ph|nm):/, '');
+        chips.push(`<button type="button" onclick="toggleDashCustomerFilter('')" class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 text-[11px] font-bold">ဝယ်သူ: ${escapeHTML(label)} ×</button>`);
+      }
+      if (dashCrossFilter.status !== 'all') {
+        chips.push(`<button type="button" onclick="toggleDashStatusFilter('all')" class="px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 text-[11px] font-bold">${dashCrossFilter.status === 'paid' ? 'ငွေချေပြီးသာ' : 'ကျန်ငွေရှိသာ'} ×</button>`);
+      }
+
+      if (chips.length === 0) {
+        wrap.classList.add('hidden');
+        wrap.innerHTML = '';
+      } else {
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = chips.join('') + `<button type="button" onclick="clearAllDashCrossFilters()" class="px-2 py-1 text-[11px] font-bold text-slate-500 hover:text-slate-900 underline">အားလုံးပြန်ပြမည်</button>`;
+      }
+    }
+
+    function renderDashboard() {
+      renderDashActiveFilterChips();
+
+      const baseVouchers = getBasePeriodDashboardVouchers();
+      const filteredVouchers = getCrossFilteredDashboardVouchers();
+
+      const totalRev = filteredVouchers.reduce((s, v) => s + (Number(v.grandTotal) || 0), 0);
+      const totalDue = filteredVouchers.reduce((s, v) => s + (Number(v.balanceDue) || 0), 0);
+      const totalPaid = Math.max(0, totalRev - totalDue);
+      const dueCount = filteredVouchers.filter(v => (Number(v.balanceDue) || 0) > 0).length;
+      const uniqueCustCount = new Set(
+        filteredVouchers.map(v => getCustomerKey(v.customerName, v.customerPhone)).filter(Boolean)
+      ).size;
+      const avgOrder = filteredVouchers.length > 0 ? Math.round(totalRev / filteredVouchers.length) : 0;
+
+      document.getElementById('kpi-revenue').textContent = formatMMK(totalRev);
+      document.getElementById('kpi-vouchers').textContent = filteredVouchers.length;
+      document.getElementById('kpi-paid').textContent = formatMMK(totalPaid);
+      document.getElementById('kpi-due').textContent = formatMMK(totalDue);
+      document.getElementById('kpi-due-count').textContent = dueCount;
+      document.getElementById('kpi-customers').textContent = uniqueCustCount;
+      document.getElementById('kpi-avg').textContent = formatNumberOnly(avgOrder);
+
+      document.getElementById('kpi-card-paid').className = dashCrossFilter.status === 'paid'
+        ? 'bg-emerald-50 rounded-2xl p-3 border-2 border-emerald-500 shadow-sm text-left transition'
+        : 'bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm text-left transition hover:border-emerald-500';
+      document.getElementById('kpi-card-due').className = dashCrossFilter.status === 'due'
+        ? 'bg-rose-50 rounded-2xl p-3 border-2 border-rose-500 shadow-sm text-left transition'
+        : 'bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm text-left transition hover:border-rose-500';
+
+      // 1. Sales Bar Chart
+      const dailyMap = {};
+      baseVouchers.forEach(v => {
+        const d = v.date || 'Unknown';
+        dailyMap[d] = (dailyMap[d] || 0) + (Number(v.grandTotal) || 0);
+      });
+      const sortedDates = Object.keys(dailyMap).sort().slice(-14);
+      const maxDaily = Math.max(1, ...sortedDates.map(d => dailyMap[d]));
+      const barChartEl = document.getElementById('dash-bar-chart');
+
+      if (sortedDates.length === 0) {
+        barChartEl.innerHTML = `<div class="w-full text-center text-xs text-slate-400 py-10">ရွေးချယ်ထားသော ကာလအတွင်း အရောင်းဒေတာ မရှိပါ</div>`;
+      } else {
+        barChartEl.innerHTML = sortedDates.map(d => {
+          const val = dailyMap[d];
+          const pct = Math.max(8, Math.round((val / maxDaily) * 100));
+          const isSelected = dashCrossFilter.date === d;
+          const shortDate = d.slice(5);
+          return `
+            <button type="button" data-date="${escapeHTML(d)}" onclick="toggleDashDateFilter(this.dataset.date)" class="flex-1 min-w-[36px] h-full flex flex-col items-center justify-end gap-1 group">
+              <span class="text-[9px] font-mono font-bold text-slate-500 group-hover:text-slate-900">${val >= 1000 ? Math.round(val / 1000) + 'k' : val}</span>
+              <div class="w-full max-w-[28px] rounded-t-lg transition-all ${isSelected ? 'bg-amber-500 ring-2 ring-amber-300' : 'bg-brand-600 group-hover:bg-brand-500'}" style="height: ${pct}%"></div>
+              <span class="text-[9px] font-mono ${isSelected ? 'font-extrabold text-amber-700' : 'text-slate-400'}">${escapeHTML(shortDate)}</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      // 2. Payment Method Donut Chart
+      const payMap = {};
+      filteredVouchers.forEach(v => {
+        const m = v.paymentMethod || 'Cash';
+        payMap[m] = (payMap[m] || 0) + (Number(v.grandTotal) || 0);
+      });
+      const payEntries = Object.entries(payMap).sort((a, b) => b[1] - a[1]);
+      const payColors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
+      const donutSvg = document.getElementById('dash-donut-svg');
+      const legendEl = document.getElementById('dash-payment-legend');
+      document.getElementById('dash-donut-center').textContent = totalRev >= 1000 ? Math.round(totalRev / 1000) + 'k' : totalRev;
+
+      if (payEntries.length === 0 || totalRev === 0) {
+        donutSvg.innerHTML = `<circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#e2e8f0" stroke-width="4"></circle>`;
+        legendEl.innerHTML = `<p class="text-xs text-slate-400">ဒေတာ မရှိသေးပါ</p>`;
+      } else {
+        let cumulativePct = 0;
+        donutSvg.innerHTML = payEntries.map(([method, amount], idx) => {
+          const pct = (amount / totalRev) * 100;
+          const dashArray = `${pct} ${100 - pct}`;
+          const dashOffset = -cumulativePct;
+          cumulativePct += pct;
+          const color = payColors[idx % payColors.length];
+          return `<circle cx="18" cy="18" r="15.915" fill="transparent" stroke="${color}" stroke-width="4.2" stroke-dasharray="${dashArray}" stroke-dashoffset="${dashOffset}"></circle>`;
+        }).join('');
+
+        legendEl.innerHTML = payEntries.map(([method, amount], idx) => {
+          const color = payColors[idx % payColors.length];
+          const isSelected = dashCrossFilter.paymentMethod === method;
+          return `
+            <button type="button" data-method="${escapeHTML(method)}" onclick="toggleDashPaymentFilter(this.dataset.method)" class="w-full flex items-center justify-between text-xs px-2 py-1 rounded-lg transition ${isSelected ? 'bg-slate-200 font-extrabold' : 'hover:bg-slate-50'}">
+              <span class="flex items-center gap-1.5 truncate">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${color}"></span>
+                <span class="truncate text-slate-700">${escapeHTML(method)}</span>
+              </span>
+              <span class="font-mono font-bold text-slate-900 shrink-0">${formatNumberOnly(amount)}</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      // 3. Top Customers Ranking
+      const custAgg = {};
+      filteredVouchers.forEach(v => {
+        const key = getCustomerKey(v.customerName, v.customerPhone) || 'walkin';
+        if (!custAgg[key]) {
+          custAgg[key] = {
+            key,
+            name: v.customerName || 'Walk-in Customer',
+            phone: v.customerPhone || '',
+            count: 0,
+            total: 0
+          };
+        }
+        custAgg[key].count += 1;
+        custAgg[key].total += Number(v.grandTotal) || 0;
+      });
+      const rankedCusts = Object.values(custAgg).sort((a, b) => b.total - a.total).slice(0, 6);
+      const topCustEl = document.getElementById('dash-top-customers');
+      if (rankedCusts.length === 0) {
+        topCustEl.innerHTML = `<p class="text-xs text-slate-400 py-6 text-center">ဝယ်သူစာရင်း မရှိသေးပါ</p>`;
+      } else {
+        topCustEl.innerHTML = rankedCusts.map((c, idx) => {
+          const isSelected = dashCrossFilter.customerKey === c.key;
+          return `
+            <button type="button" data-ckey="${escapeHTML(c.key)}" onclick="toggleDashCustomerFilter(this.dataset.ckey)" class="w-full p-2 rounded-xl border text-left flex items-center justify-between gap-2 transition ${isSelected ? 'border-amber-500 bg-amber-50' : 'border-slate-100 bg-slate-50 hover:bg-slate-100'}">
+              <div class="min-w-0">
+                <p class="text-xs font-extrabold text-slate-900 truncate">${idx + 1}. ${escapeHTML(c.name)}</p>
+                <p class="text-[10px] text-slate-500 truncate">${escapeHTML(c.phone || '-')} • ${c.count} စောင်</p>
+              </div>
+              <span class="text-xs font-mono font-extrabold text-brand-700 shrink-0">${formatMMK(c.total)}</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      // 4. Top Products Ranking
+      const prodAgg = {};
+      filteredVouchers.forEach(v => {
+        (v.items || []).forEach(item => {
+          const name = item.name || 'Item';
+          const line = calculateItemLineTotals(item);
+          if (!prodAgg[name]) prodAgg[name] = { name, qty: 0, revenue: 0, units: new Set() };
+          prodAgg[name].qty += line.qty;
+          prodAgg[name].revenue += line.netTotal;
+          if (item.unit) prodAgg[name].units.add(item.unit.trim());
+        });
+      });
+      const rankedProds = Object.values(prodAgg).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+      const topProdEl = document.getElementById('dash-top-products');
+      if (rankedProds.length === 0) {
+        topProdEl.innerHTML = `<p class="col-span-full text-xs text-slate-400 py-4 text-center">ပစ္စည်းအရောင်းစာရင်း မရှိသေးပါ</p>`;
+      } else {
+        const maxRev = rankedProds[0].revenue || 1;
+        topProdEl.innerHTML = rankedProds.map((item, idx) => {
+          const pct = Math.max(4, Math.round((item.revenue / maxRev) * 100));
+          const isSelected = dashCrossFilter.productName === item.name;
+          const unitLabel = item.units.size === 1 ? Array.from(item.units)[0] : '';
+          return `
+            <button type="button" data-product="${escapeHTML(item.name)}" onclick="toggleDashProductFilter(this.dataset.product)" class="p-2.5 rounded-xl border text-left space-y-1.5 transition ${isSelected ? 'border-brand-600 bg-brand-50 ring-1 ring-brand-600' : 'border-slate-100 bg-slate-50 hover:bg-slate-100'}">
+              <div class="flex items-center justify-between gap-2 text-xs">
+                <span class="font-bold text-slate-900 truncate">${idx + 1}. ${escapeHTML(item.name)}</span>
+                <span class="font-mono font-extrabold text-slate-900 shrink-0">${formatMMK(item.revenue)}</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div class="h-full bg-brand-600 rounded-full" style="width: ${pct}%"></div>
+              </div>
+              <p class="text-[10px] text-slate-500">ရောင်းရအရေအတွက်: <strong class="font-mono text-slate-700">${item.qty}</strong>${unitLabel ? ` <span class="font-semibold text-slate-600">${escapeHTML(unitLabel)}</span>` : ''}</p>
+            </button>
+          `;
+        }).join('');
+      }
+
+      // 5. Power BI Drill-Down Detailed Table
+      document.getElementById('dash-drill-count').textContent = filteredVouchers.length;
+      document.getElementById('dash-drill-sum').textContent = formatMMK(totalRev);
+      const tbody = document.getElementById('dash-drill-tbody');
+      if (filteredVouchers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-xs text-slate-400">စာရင်း မရှိပါ</td></tr>`;
+      } else {
+        tbody.innerHTML = filteredVouchers.slice(0, 40).map(v => `
+          <tr data-vid="${escapeHTML(v.id)}" onclick="openVoucherPreview(this.dataset.vid)" class="hover:bg-slate-50 cursor-pointer">
+            <td class="py-2 pr-2 font-mono font-bold text-brand-700">${escapeHTML(v.voucherNo)}</td>
+            <td class="py-2 px-2 font-bold text-slate-800 truncate max-w-[120px]">${escapeHTML(v.customerName || '-')}</td>
+            <td class="py-2 px-2 font-mono text-slate-500">${escapeHTML(v.date)}</td>
+            <td class="py-2 pl-2 text-right font-mono font-extrabold text-slate-900">${formatNumberOnly(v.grandTotal)}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // =========================================================================
+    // 10. E-VOUCHER & 2-INCH (58MM) THERMAL PRINT PREVIEW
+    // =========================================================================
+    function openVoucherPreview(voucherId) {
+      const v = vouchers.find(item => item.id === voucherId);
+      if (!v) return;
+      activePreviewVoucher = v;
+      renderVoucherPreviewContent();
+      document.getElementById('voucher-preview-modal').classList.remove('hidden');
+    }
+
+    function closeVoucherPreview() {
+      document.getElementById('voucher-preview-modal').classList.add('hidden');
+      activePreviewVoucher = null;
+    }
+
+    function setReceiptPrintFormat(fmt) {
+      activeReceiptFormat = fmt;
+      const btnEv = document.getElementById('fmt-btn-evoucher');
+      const btnTh = document.getElementById('fmt-btn-thermal58');
+
+      if (fmt === 'evoucher') {
+        btnEv.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold bg-brand-600 text-white transition';
+        btnTh.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold text-slate-600 transition';
+      } else {
+        btnTh.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold bg-slate-900 text-white transition';
+        btnEv.className = 'px-3 py-1.5 rounded-lg text-xs font-extrabold text-slate-600 transition';
+      }
+      renderVoucherPreviewContent();
+    }
+
+    function renderVoucherPreviewContent() {
+      const v = activePreviewVoucher;
+      if (!v) return;
+      const area = document.getElementById('print-area');
+      const totalItemDisc = (v.items || []).reduce((sum, item) => sum + calculateItemLineTotals(item).discountAmount, 0);
+
+      if (activeReceiptFormat === 'thermal58') {
+        // 2-inch (58mm) Thermal Slip Layout
+        area.className = 'thermal-58mm bg-white text-black rounded-xl shadow-md border border-slate-300 w-[230px] p-3 font-mono text-[11px] leading-snug';
+        area.innerHTML = `
+          <div class="text-center border-b border-dashed border-black pb-2 space-y-0.5">
+            <p class="font-extrabold text-sm">${escapeHTML(shopSettings.shopName)}</p>
+            ${shopSettings.phone ? `<p class="text-[10px]">Tel: ${escapeHTML(shopSettings.phone)}</p>` : ''}
+            ${shopSettings.address ? `<p class="text-[10px]">${escapeHTML(shopSettings.address)}</p>` : ''}
+          </div>
+
+          <div class="py-1.5 border-b border-dashed border-black text-[10px] space-y-0.5">
+            <div class="flex justify-between"><span>No:</span><span class="font-bold">${escapeHTML(v.voucherNo)}</span></div>
+            <div class="flex justify-between"><span>Date:</span><span>${escapeHTML(v.date)}</span></div>
+            <div class="flex justify-between"><span>Cust:</span><span class="font-bold truncate max-w-[130px]">${escapeHTML(v.customerName || '-')}</span></div>
+            ${v.customerPhone ? `<div class="flex justify-between"><span>Phone:</span><span>${escapeHTML(v.customerPhone)}</span></div>` : ''}
+          </div>
+
+          <div class="py-1.5 border-b border-dashed border-black space-y-1">
+            ${(v.items || []).map(item => {
+              const line = calculateItemLineTotals(item);
+              return `
+                <div>
+                  <p class="font-bold">${escapeHTML(item.name)}</p>
+                  <div class="flex justify-between text-[10px]">
+                    <span>${line.qty}${item.unit ? ' ' + escapeHTML(item.unit) : ''} x ${formatNumberOnly(line.price)}</span>
+                    <span class="font-bold">${formatNumberOnly(line.netTotal)}</span>
+                  </div>
+                  ${line.discountAmount > 0 ? `<div class="flex justify-between text-[9px] italic"><span>  Disc${line.discType === 'percent' ? ` (${line.rawDisc}%)` : ''}:</span><span>-${formatNumberOnly(line.discountAmount)}</span></div>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="py-1.5 space-y-0.5 text-[10px]">
+            ${totalItemDisc > 0 ? `<div class="flex justify-between"><span>Item Disc Saved:</span><span>-${formatNumberOnly(totalItemDisc)}</span></div>` : ''}
+            <div class="flex justify-between"><span>Subtotal:</span><span>${formatNumberOnly(v.subtotal)}</span></div>
+            ${v.discountAmount > 0 ? `<div class="flex justify-between"><span>Voucher Disc:</span><span>-${formatNumberOnly(v.discountAmount)}</span></div>` : ''}
+            ${v.delivery > 0 ? `<div class="flex justify-between"><span>Delivery:</span><span>+${formatNumberOnly(v.delivery)}</span></div>` : ''}
+            <div class="flex justify-between font-extrabold text-xs border-t border-black pt-1 mt-1">
+              <span>TOTAL:</span>
+              <span>${formatMMK(v.grandTotal)}</span>
+            </div>
+            <div class="flex justify-between"><span>Paid (${escapeHTML(v.paymentMethod || 'Cash')}):</span><span>${formatNumberOnly(v.paidAmount)}</span></div>
+            ${v.balanceDue > 0 ? `<div class="flex justify-between font-bold"><span>Balance Due:</span><span>${formatNumberOnly(v.balanceDue)}</span></div>` : ''}
+          </div>
+
+          ${shopSettings.footerNote ? `<p class="text-center text-[9px] border-t border-dashed border-black pt-1.5 mt-1">${escapeHTML(shopSettings.footerNote)}</p>` : ''}
+        `;
+        return;
+      }
+
+      // Standard E-Voucher / A5 Layout
+      area.className = 'evoucher-standard bg-white text-slate-900 rounded-2xl shadow-md border border-slate-200 w-full max-w-md p-4 sm:p-5 space-y-3.5';
+      area.innerHTML = `
+        <!-- Brand Header -->
+        <div class="flex items-start justify-between gap-3 border-b-2 border-brand-600 pb-3">
+          <div class="flex items-center gap-2.5 min-w-0">
+            ${shopSettings.logoDataUrl
+              ? `<img src="${shopSettings.logoDataUrl}" alt="Logo" class="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" />`
+              : `<div class="w-11 h-11 rounded-xl bg-brand-600 text-white flex items-center justify-center font-extrabold text-lg shrink-0">${escapeHTML((shopSettings.shopName || 'S')[0].toUpperCase())}</div>`
+            }
+            <div class="min-w-0">
+              <h3 class="text-base font-extrabold text-slate-900 leading-tight">${escapeHTML(shopSettings.shopName)}</h3>
+              ${shopSettings.phone ? `<p class="text-[11px] font-mono text-slate-600">${escapeHTML(shopSettings.phone)}</p>` : ''}
+              ${shopSettings.address ? `<p class="text-[11px] text-slate-500 leading-snug">${escapeHTML(shopSettings.address)}</p>` : ''}
+            </div>
+          </div>
+          <div class="text-right shrink-0">
+            <span class="inline-block px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 text-[10px] font-extrabold uppercase tracking-wider">E-VOUCHER</span>
+            <p class="text-xs font-mono font-extrabold text-slate-900 mt-1">${escapeHTML(v.voucherNo)}</p>
+            <p class="text-[11px] font-mono text-slate-500">${escapeHTML(v.date)}</p>
+          </div>
+        </div>
+
+        <!-- Customer Box -->
+        <div class="bg-slate-50 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs">
+          <div class="min-w-0">
+            <p class="text-[10px] font-semibold text-slate-400">ဝယ်သူ (Customer)</p>
+            <p class="font-extrabold text-slate-900 truncate">${escapeHTML(v.customerName || 'Walk-in Customer')}</p>
+            ${v.customerAddress ? `<p class="text-[11px] text-slate-500 truncate">${escapeHTML(v.customerAddress)}</p>` : ''}
+          </div>
+          <div class="text-right shrink-0">
+            ${v.customerPhone ? `<p class="font-mono font-bold text-slate-700">${escapeHTML(v.customerPhone)}</p>` : ''}
+            <span class="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">${escapeHTML(v.paymentMethod || 'Cash')}</span>
+          </div>
+        </div>
+
+        <!-- Itemized Table -->
+        <div>
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-brand-50 text-brand-900 text-[11px] font-extrabold">
+                <th class="py-2 px-2 rounded-l-lg">ပစ္စည်းအမည်</th>
+                <th class="py-2 px-1.5 text-center">အရေအတွက်</th>
+                <th class="py-2 px-1.5 text-right">နှုန်း</th>
+                <th class="py-2 px-2 text-right rounded-r-lg">သင့်ငွေ</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              ${(v.items || []).map(item => {
+                const line = calculateItemLineTotals(item);
+                return `
+                  <tr>
+                    <td class="py-2 px-2">
+                      <div class="font-bold text-slate-800">${escapeHTML(item.name)}</div>
+                      ${line.discountAmount > 0 ? `<div class="text-[10px] font-semibold text-rose-600">လျှော့ဈေး: -${formatNumberOnly(line.discountAmount)} Ks${line.discType === 'percent' ? ` (${line.rawDisc}%)` : ''}</div>` : ''}
+                    </td>
+                    <td class="py-2 px-1.5 text-center font-mono whitespace-nowrap">${line.qty}${item.unit ? ` <span class="font-sans text-[10px] font-semibold text-slate-500">${escapeHTML(item.unit)}</span>` : ''}</td>
+                    <td class="py-2 px-1.5 text-right font-mono text-slate-600">${formatNumberOnly(line.price)}</td>
+                    <td class="py-2 px-2 text-right font-mono">
+                      ${line.discountAmount > 0 ? `<div class="text-[10px] text-slate-400 line-through leading-none">${formatNumberOnly(line.gross)}</div>` : ''}
+                      <span class="font-extrabold text-slate-900">${formatNumberOnly(line.netTotal)}</span>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Totals & QR Section -->
+        <div class="flex items-end justify-between gap-3 pt-2 border-t border-slate-200">
+          <div class="shrink-0">
+            ${shopSettings.qrDataUrl ? `
+              <div class="text-center">
+                <img src="${shopSettings.qrDataUrl}" alt="Payment QR" class="w-20 h-20 object-contain rounded-xl border border-slate-200 p-1 bg-white" />
+                <p class="text-[9px] font-bold text-slate-400 mt-0.5">Scan to Pay</p>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="flex-1 max-w-[220px] space-y-1 text-xs">
+            ${totalItemDisc > 0 ? `
+              <div class="flex justify-between text-amber-700">
+                <span>ပစ္စည်းလျှော့ဈေး စုစုပေါင်း</span>
+                <span class="font-mono font-semibold">- ${formatMMK(totalItemDisc)}</span>
+              </div>
+            ` : ''}
+            <div class="flex justify-between text-slate-500">
+              <span>စုစုပေါင်း</span>
+              <span class="font-mono font-semibold">${formatMMK(v.subtotal)}</span>
+            </div>
+            ${v.discountAmount > 0 ? `
+              <div class="flex justify-between text-rose-600">
+                <span>ဘောက်ချာ လျှော့ဈေး</span>
+                <span class="font-mono font-semibold">- ${formatMMK(v.discountAmount)}</span>
+              </div>
+            ` : ''}
+            ${v.delivery > 0 ? `
+              <div class="flex justify-between text-slate-600">
+                <span>ပို့ဆောင်ခ</span>
+                <span class="font-mono font-semibold">+ ${formatMMK(v.delivery)}</span>
+              </div>
+            ` : ''}
+            <div class="flex justify-between items-center pt-1.5 border-t border-slate-200 text-sm font-extrabold text-brand-700">
+              <span>ကျသင့်ငွေ</span>
+              <span class="font-mono">${formatMMK(v.grandTotal)}</span>
+            </div>
+            <div class="flex justify-between text-[11px] text-slate-600">
+              <span>ပေးငွေ</span>
+              <span class="font-mono font-bold">${formatMMK(v.paidAmount)}</span>
+            </div>
+            ${v.balanceDue > 0 ? `
+              <div class="flex justify-between text-[11px] font-extrabold text-rose-600">
+                <span>ရရန်ကျန်ငွေ</span>
+                <span class="font-mono">${formatMMK(v.balanceDue)}</span>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        ${shopSettings.footerNote ? `
+          <p class="text-center text-[11px] text-slate-500 pt-2 border-t border-dashed border-slate-200">
+            ${escapeHTML(shopSettings.footerNote)}
+          </p>
+        ` : ''}
+      `;
+    }
+
+    // =========================================================================
+    // 11. PNG IMAGE DOWNLOAD, SHARE & EXCEL EXPORT
+    // =========================================================================
+    async function downloadVoucherPNG() {
+      const area = document.getElementById('print-area');
+      if (!area || !activePreviewVoucher) return;
+      try {
+        const canvas = await html2canvas(area, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        const link = document.createElement('a');
+        link.download = `${activePreviewVoucher.voucherNo || 'voucher'}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('e-Voucher ပုံ သိမ်းဆည်းပြီးပါပြီ');
+      } catch (err) {
+        showToast('ပုံထုတ်ယူမှု မအောင်မြင်ပါ', 'error');
+      }
+    }
+
+    async function shareVoucherPNG() {
+      const area = document.getElementById('print-area');
+      if (!area || !activePreviewVoucher) return;
+      try {
+        const canvas = await html2canvas(area, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        canvas.toBlob(async (blob) => {
+          if (!blob) return;
+          const file = new File([blob], `${activePreviewVoucher.voucherNo || 'voucher'}.png`, { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: activePreviewVoucher.voucherNo,
+              text: `${shopSettings.shopName} - ${activePreviewVoucher.voucherNo}`
+            });
+          } else {
+            downloadVoucherPNG();
+          }
+        }, 'image/png');
+      } catch (err) {
+        downloadVoucherPNG();
+      }
+    }
+
+    function exportVouchersToExcel(source) {
+      if (typeof XLSX === 'undefined') {
+        showToast('Excel Library မဖွင့်နိုင်သေးပါ', 'error');
+        return;
+      }
+      const list = source === 'dashboard' ? getCrossFilteredDashboardVouchers() : getFilteredHistoryVouchers();
+      if (list.length === 0) {
+        showToast('Excel ထုတ်ရန် စာရင်း မရှိပါ', 'warning');
+        return;
+      }
+
+      const rows = list.map((v, idx) => {
+        const totalItemDisc = (v.items || []).reduce((sum, item) => sum + calculateItemLineTotals(item).discountAmount, 0);
+        return {
+          'စဉ်': idx + 1,
+          'ဘောက်ချာနံပါတ်': v.voucherNo,
+          'ရက်စွဲ': v.date,
+          'ဝယ်သူအမည်': v.customerName || '',
+          'ဖုန်းနံပါတ်': v.customerPhone || '',
+          'လိပ်စာ': v.customerAddress || '',
+          'ပစ္စည်းစာရင်း': (v.items || []).map(i => {
+            const line = calculateItemLineTotals(i);
+            const discPart = line.discountAmount > 0 ? `, -Disc ${line.discountAmount}` : '';
+            return `${i.name} (${line.qty}${i.unit ? ' ' + i.unit : ''} x ${line.price}${discPart})`;
+          }).join(', '),
+          'ပစ္စည်းလျှော့ဈေး': totalItemDisc,
+          'စုစုပေါင်း': Number(v.subtotal) || 0,
+          'ဘောက်ချာလျှော့ဈေး': Number(v.discountAmount) || 0,
+          'ပို့ဆောင်ခ': Number(v.delivery) || 0,
+          'ကျသင့်ငွေ': Number(v.grandTotal) || 0,
+          'ပေးငွေ': Number(v.paidAmount) || 0,
+          'ကျန်ငွေ': Number(v.balanceDue) || 0,
+          'ငွေပေးချေမှု': v.paymentMethod || 'Cash'
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sales_Vouchers');
+      XLSX.writeFile(wb, `ShwePOS_Report_${getTodayISO()}.xlsx`);
+      showToast('Excel ဖိုင် ဒေါင်းလုဒ်ဆွဲပြီးပါပြီ');
+    }
+
+    // =========================================================================
+    // 12. SETTINGS: PRODUCTS, SHOP INFO, IMAGES & JSON BACKUP
+    // =========================================================================
+    function saveProductItem() {
+      const id = document.getElementById('edit-product-id').value;
+      const name = document.getElementById('prod-name-input').value.trim();
+      const unit = document.getElementById('prod-unit-input').value.trim();
+      const price = Math.max(0, Number(document.getElementById('prod-price-input').value) || 0);
+
+      if (!name) {
+        showToast('ပစ္စည်းအမည် ထည့်သွင်းပါ', 'error');
+        return;
+      }
+
+      if (id) {
+        const idx = products.findIndex(p => p.id === id);
+        if (idx >= 0) products[idx] = { ...products[idx], name, unit, price };
+        showToast('ပစ္စည်း ပြင်ဆင်ပြီးပါပြီ');
+      } else {
+        products.unshift({ id: generateId('prod'), name, unit, price });
+        showToast('ပစ္စည်းအသစ် ထည့်သွင်းပြီးပါပြီ');
+      }
+
+      document.getElementById('edit-product-id').value = '';
+      document.getElementById('prod-name-input').value = '';
+      document.getElementById('prod-unit-input').value = '';
+      document.getElementById('prod-price-input').value = '';
+      document.getElementById('prod-save-btn').textContent = 'ထည့်မည်';
+
+      persistAllState();
+      renderSettingsProductList();
+      renderPosQuickProducts();
+    }
+
+    function editProductItem(id) {
+      const p = products.find(item => item.id === id);
+      if (!p) return;
+      document.getElementById('edit-product-id').value = p.id;
+      document.getElementById('prod-name-input').value = p.name;
+      document.getElementById('prod-unit-input').value = p.unit || '';
+      document.getElementById('prod-price-input').value = p.price;
+      document.getElementById('prod-save-btn').textContent = 'ပြင်မည်';
+    }
+
+    function deleteProductItem(id) {
+      openConfirmModal('ဤပစ္စည်းကို ဖျက်မှာ သေချာပါသလား?', () => {
+        products = products.filter(p => p.id !== id);
+        persistAllState();
+        renderSettingsProductList();
+        renderPosQuickProducts();
+        showToast('ပစ္စည်း ဖျက်ပြီးပါပြီ');
+      });
+    }
+
+    function renderSettingsProductList() {
+      document.getElementById('settings-prod-count').textContent = products.length;
+      const list = document.getElementById('settings-product-list');
+      if (products.length === 0) {
+        list.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">ပစ္စည်းစာရင်း မရှိသေးပါ</p>`;
+        return;
+      }
+      list.innerHTML = products.map(p => `
+        <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(p.name)}</p>
+            <p class="text-[11px] font-mono font-bold text-brand-700">${formatMMK(p.price)}${p.unit ? ` <span class="font-sans text-[10px] font-semibold text-slate-500">/ ${escapeHTML(p.unit)}</span>` : ''}</p>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button type="button" data-pid="${escapeHTML(p.id)}" onclick="editProductItem(this.dataset.pid)" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold">ပြင်</button>
+            <button type="button" data-pid="${escapeHTML(p.id)}" onclick="deleteProductItem(this.dataset.pid)" class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-bold">ဖျက်</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function handleImageUpload(event, target) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+          const canvas = document.createElement('canvas');
+          const maxDim = 260;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/png', 0.85);
+
+          if (target === 'logo') {
+            shopSettings.logoDataUrl = compressed;
+          } else {
+            shopSettings.qrDataUrl = compressed;
+          }
+          syncSettingsFormUI();
+          showToast('ပုံထည့်သွင်းပြီးပါပြီ — "သိမ်းဆည်းမည်" ကို နှိပ်ပါ');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeSettingImage(target) {
+      if (target === 'logo') shopSettings.logoDataUrl = '';
+      if (target === 'qr') shopSettings.qrDataUrl = '';
+      syncSettingsFormUI();
+    }
+
+    function saveShopSettings() {
+      shopSettings.shopName = document.getElementById('set-shop-name').value.trim() || 'ShwePOS';
+      shopSettings.phone = document.getElementById('set-shop-phone').value.trim();
+      shopSettings.address = document.getElementById('set-shop-address').value.trim();
+      shopSettings.footerNote = document.getElementById('set-shop-footer').value.trim();
+
+      persistAllState();
+      syncHeaderBranding();
+      showToast('ဆိုင်အချက်အလက်များ သိမ်းဆည်းပြီးပါပြီ');
+    }
+
+    function syncHeaderBranding() {
+      document.getElementById('header-shop-name').textContent = shopSettings.shopName || 'ShwePOS';
+      document.getElementById('header-shop-sub').textContent = shopSettings.phone || shopSettings.address || 'အရောင်းဘောက်ချာနှင့် e-Voucher';
+
+      const logoImg = document.getElementById('header-logo-img');
+      const logoFallback = document.getElementById('header-logo-fallback');
+      if (shopSettings.logoDataUrl) {
+        logoImg.src = shopSettings.logoDataUrl;
+        logoImg.classList.remove('hidden');
+        logoFallback.classList.add('hidden');
+      } else {
+        logoImg.classList.add('hidden');
+        logoFallback.classList.remove('hidden');
+        logoFallback.textContent = (shopSettings.shopName || 'S')[0].toUpperCase();
+      }
+    }
+
+    function syncSettingsFormUI() {
+      document.getElementById('set-shop-name').value = shopSettings.shopName || '';
+      document.getElementById('set-shop-phone').value = shopSettings.phone || '';
+      document.getElementById('set-shop-address').value = shopSettings.address || '';
+      document.getElementById('set-shop-footer').value = shopSettings.footerNote || '';
+
+      const logoPrev = document.getElementById('set-logo-preview');
+      const logoPlace = document.getElementById('set-logo-placeholder');
+      if (shopSettings.logoDataUrl) {
+        logoPrev.src = shopSettings.logoDataUrl;
+        logoPrev.classList.remove('hidden');
+        logoPlace.classList.add('hidden');
+      } else {
+        logoPrev.classList.add('hidden');
+        logoPlace.classList.remove('hidden');
+      }
+
+      const qrPrev = document.getElementById('set-qr-preview');
+      const qrPlace = document.getElementById('set-qr-placeholder');
+      if (shopSettings.qrDataUrl) {
+        qrPrev.src = shopSettings.qrDataUrl;
+        qrPrev.classList.remove('hidden');
+        qrPlace.classList.add('hidden');
+      } else {
+        qrPrev.classList.add('hidden');
+        qrPlace.classList.remove('hidden');
+      }
+    }
+
+    function exportBackupJSON() {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        settings: shopSettings,
+        products,
+        customers,
+        vouchers
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `ShwePOS_Backup_${getTodayISO()}.json`;
+      link.click();
+      showToast('Backup ဖိုင် သိမ်းဆည်းပြီးပါပြီ');
+    }
+
+    function importBackupJSON(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (data.settings) shopSettings = { ...shopSettings, ...data.settings };
+          if (Array.isArray(data.products)) products = data.products;
+          if (Array.isArray(data.customers)) customers = data.customers;
+          if (Array.isArray(data.vouchers)) vouchers = data.vouchers;
+          persistAllState();
+          refreshAllUI();
+          showToast('Backup ဒေတာများ ပြန်တင်ပြီးပါပြီ');
+        } catch (err) {
+          showToast('ဖိုင်ပုံစံ မှားယွင်းနေပါသည်', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function refreshAllUI() {
+      applyThemePalette(shopSettings.themeColor);
+      syncHeaderBranding();
+      syncSettingsFormUI();
+      refreshCustomerDatalistsAndDropdowns();
+      renderPosQuickProducts();
+      renderSettingsProductList();
+      renderSettingsCustomerList();
+      renderHistoryList();
+      renderDashboard();
+    }
+
+    // =========================================================================
+    // 13. INITIAL BOOTSTRAP ON WINDOW LOAD
+    // =========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      loadLocalCacheFirst();
+      resetPosForm();
+      setHistoryPeriodMode('day');
+      setDashPeriodMode('month');
+      refreshAllUI();
+      initFirebaseBackground();
+    });
+  </script>
+</body>
+</html>
